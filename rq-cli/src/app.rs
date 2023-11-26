@@ -167,7 +167,7 @@ impl App {
         };
 
         match event.code {
-            KeyCode::Char('q') | KeyCode::Char('Q') => {
+            KeyCode::Char('q' | 'Q') => {
                 self.should_exit = true;
             }
             KeyCode::Char('c') => {
@@ -186,7 +186,7 @@ impl App {
                             self.request_menu.selected().clone(),
                             self.request_menu.idx(),
                         ))
-                        .await?
+                        .await?;
                 }
             },
             _ => (),

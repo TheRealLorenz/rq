@@ -43,8 +43,8 @@ impl From<Bytes> for Content {
 #[derive(Clone)]
 pub struct Response {
     pub status: StatusCode,
-    pub headers: HeaderMap,
     pub version: String,
+    pub headers: HeaderMap,
     pub body: Content,
 }
 
@@ -72,7 +72,7 @@ pub async fn execute(req: &HttpRequest) -> RequestResult {
         .headers(req.headers())
         .body(req.body.clone());
 
-    let res = request.send().await?;
+    let response = request.send().await?;
 
-    Ok(Response::from_reqwest(res).await)
+    Ok(Response::from_reqwest(response).await)
 }

@@ -26,6 +26,6 @@ impl BlockComponent for Input {
             area.x + ((self.visual_cursor()).max(scroll) - scroll) as u16 + 1,
             // Move one line down, from the border to the input line
             area.y + 1,
-        )
+        );
     }
 }

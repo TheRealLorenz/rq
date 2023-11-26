@@ -128,7 +128,7 @@ impl BlockComponent for ResponsePanel {
                     std::fs::write(&file_path, to_save)?;
                     self.input_popup = None;
 
-                    MessageDialog::push_message(Message::Info(format!("Saved to {}", file_path)));
+                    MessageDialog::push_message(Message::Info(format!("Saved to {file_path}")));
 
                     return Ok(HandleSuccess::Consumed);
                 }
@@ -168,7 +168,7 @@ impl BlockComponent for ResponsePanel {
             KeyCode::Down | KeyCode::Char('j') => self.scroll_down(),
             KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
             KeyCode::Char('s') => {
-                self.save_menu = Some(Popup::new(Menu::new(SaveOption::iterator().collect())))
+                self.save_menu = Some(Popup::new(Menu::new(SaveOption::iterator().collect())));
             }
             _ => return Ok(HandleSuccess::Ignored),
         };
@@ -209,7 +209,7 @@ impl BlockComponent for ResponsePanel {
                         Span::styled(format!("{k}"), Style::default().fg(Color::Blue)),
                         ": ".into(),
                         v.to_str().unwrap().into(),
-                    ]))
+                    ]));
                 }
 
                 // Body
@@ -259,7 +259,7 @@ impl BlockComponent for ResponsePanel {
                 frame,
                 frame.size(),
                 Block::default().borders(Borders::ALL).title(" save menu "),
-            )
+            );
         }
     }
 }
