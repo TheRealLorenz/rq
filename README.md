@@ -10,33 +10,7 @@ alternative to [vscode-restclient](https://github.com/Huachao/vscode-restclient)
 
 Original author blogpost: https://protiumx.github.io/blog/posts/an-http-request-parser-with-rust-and-pest-rs/
 
-This project is based on [PEG](https://en.wikipedia.org/wiki/Parsing_expression_grammar).
-
-## Dependencies
-
-- [pest](https://github.com/pest-parser/pest): PEG parser 
-- [reqwest](https://github.com/seanmonstar/reqwest): HTTP requests
-- [tui-rs](https://github.com/fdehau/tui-rs/): TUI library
-- [crossterm](https://github.com/crossterm-rs/crossterm): tui-rs backend
-- [tokio](https://github.com/tokio-rs/tokio): asynchronous runtime
-
-## Packages
-
-### `rq-core`
-
-Contains the core functionality: `pest` grammar and request execution.
-
-### `rq-cli`
-
-CLI application that uses `tui-rs` to render all the requests and a buffer to show responses.
-This package is the default target for `cargo` workspaces.
-
-Run `rq-cli` with `cargo`:
-```sh
-cargo run -- requests.http
-```
-
-## HTTP Request Grammar
+## HTTP File
 
 The `pest` grammar can be found [here](./rq-core/src/grammar.pest).
 You can use the [pest editor](https://pest.rs/#editor) to try it out and check how it works.
@@ -45,13 +19,16 @@ You can use the [pest editor](https://pest.rs/#editor) to try it out and check h
 
 ```
 -- request --
-{request_line}\r\n
-{header \r\n \r\n}*
-{body \r\n}*
+{request_line}\n
+{header\n\n}*
+{body\n}?
 ```
 
 A `request` is conformed by: `{ request_line, headers, body}`, where `headers` and `body` are optional
 matches.
-A `request_line` is conformed by: `{ method, target, version }`.
-A `headers` is a collection of `header` `{ header_name, header_value }`
-A `body` is anything that doesn't match headers and has a preceding line break, as specified in the RFC.
+- `request_line` is conformed by: `{ method, target, version }`.
+  - `method` is one of `GET`, `POST`, `PUT`, `DELETE` (optional, defaults to `GET`).
+  - `target` is the target url.
+  - `version` is one of `HTTP/0.9`, `HTTP/1.0`, `HTTP/1.1`, `HTTP/2.0`, `HTTP/3.0` (optional, defaults to `HTTP/1.1`)
+- `headers` is a collection of `header` `{ header_name, header_value }` (optional).
+- `body` is anything that doesn't match headers and has a preceding line break, as specified in the RFC (optional).
