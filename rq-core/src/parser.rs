@@ -141,7 +141,7 @@ impl Display for HttpFile {
             return Ok(());
         }
         for (i, req) in self.requests.iter().enumerate() {
-            write!(f, "#{}\n{}\n", i, req)?;
+            write!(f, "#{i}\n{req}\n")?;
         }
         Ok(())
     }

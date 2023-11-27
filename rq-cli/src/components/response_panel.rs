@@ -48,8 +48,16 @@ impl MenuItem for SaveOption {
 }
 
 #[derive(Clone, Default)]
+enum State {
+    #[default]
+    Empty,
+    Loading,
+    Received(Response),
+}
+
+#[derive(Clone, Default)]
 pub struct ResponsePanel {
-    content: Option<Response>,
+    state: State,
     scroll: u16,
     input_popup: Option<Popup<Input>>,
     save_option: SaveOption,
@@ -57,14 +65,13 @@ pub struct ResponsePanel {
     show_raw: bool,
 }
 
-impl From<Response> for ResponsePanel {
-    fn from(value: Response) -> Self {
-        let default = Self::default();
+impl ResponsePanel {
+    pub fn set_loading(&mut self) {
+        self.state = State::Loading;
+    }
 
-        Self {
-            content: Some(value),
-            ..default
-        }
+    pub fn set_response(&mut self, value: Response) {
+        self.state = State::Received(value)
     }
 }
 
@@ -78,15 +85,15 @@ impl ResponsePanel {
     }
 
     fn body(&self) -> anyhow::Result<Payload> {
-        match &self.content {
-            Some(response) => Ok(response.payload.clone()),
-            None => Err(anyhow!("Request not sent")),
+        match &self.state {
+            State::Received(response) => Ok(response.payload.clone()),
+            State::Empty | State::Loading => Err(anyhow!("Request not sent")),
         }
     }
 
     fn to_string(&self) -> anyhow::Result<String> {
-        match &self.content {
-            Some(response) => {
+        match &self.state {
+            State::Received(response) => {
                 let headers = response
                     .headers
                     .iter()
@@ -104,7 +111,7 @@ impl ResponsePanel {
 
                 Ok(s)
             }
-            None => Err(anyhow!("Request not sent")),
+            State::Empty | State::Loading => Err(anyhow!("Request not sent")),
         }
     }
 
@@ -158,7 +165,7 @@ impl BlockComponent for ResponsePanel {
                     std::fs::write(&file_path, to_save)?;
                     self.input_popup = None;
 
-                    MessageDialog::push_message(Message::Info(format!("Saved to {}", file_path)));
+                    MessageDialog::push_message(Message::Info(format!("Saved to {file_path}")));
 
                     return Ok(HandleSuccess::Consumed);
                 }
@@ -211,7 +218,7 @@ impl BlockComponent for ResponsePanel {
             KeyCode::Down | KeyCode::Char('j') => self.scroll_down(),
             KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
             KeyCode::Char('s') => {
-                self.save_menu = Some(Popup::new(Menu::new(SaveOption::iterator().collect())))
+                self.save_menu = Some(Popup::new(Menu::new(SaveOption::iterator().collect())));
             }
             _ => return Ok(HandleSuccess::Ignored),
         };
@@ -225,8 +232,8 @@ impl BlockComponent for ResponsePanel {
         area: ratatui::prelude::Rect,
         block: ratatui::widgets::Block,
     ) {
-        let content = match &self.content {
-            Some(response) => {
+        let content = match &self.state {
+            State::Received(response) => {
                 let mut lines = vec![];
 
                 // First line
@@ -247,7 +254,7 @@ impl BlockComponent for ResponsePanel {
                         Span::styled(format!("{k}"), Style::default().fg(Color::Blue)),
                         ": ".into(),
                         v.to_str().unwrap().into(),
-                    ]))
+                    ]));
                 }
 
                 // Body
@@ -257,7 +264,18 @@ impl BlockComponent for ResponsePanel {
 
                 lines
             }
-            None => vec![Line::styled("<Empty>", Style::default().fg(Color::Yellow))],
+            State::Empty => vec![Line::styled(
+                "Empty",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::ITALIC),
+            )],
+            State::Loading => vec![Line::styled(
+                "Loading...",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::ITALIC),
+            )],
         };
 
         let content_length = content.len();
@@ -295,7 +313,7 @@ impl BlockComponent for ResponsePanel {
                 frame,
                 frame.size(),
                 Block::default().borders(Borders::ALL).title(" save menu "),
-            )
+            );
         }
     }
 }

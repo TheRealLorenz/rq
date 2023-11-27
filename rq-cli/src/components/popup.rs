@@ -43,7 +43,7 @@ impl<T: BlockComponent> BlockComponent for Popup<T> {
     }
 
     fn update(&mut self) {
-        self.component.update()
+        self.component.update();
     }
 
     fn render(

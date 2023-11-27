@@ -1,0 +1,19 @@
+GET https://httpbin.org/get
+Foo: Bar
+
+###
+
+POST https://httpbin.org/post
+Bar: Baz
+
+{
+    "example": "payload"
+}
+
+###
+
+PUT https://httpin.org/put
+
+{
+    "foo": "bar"
+}

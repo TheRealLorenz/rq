@@ -1,7 +1,8 @@
 # rq
 [![rq-core](https://github.com/TheRealLorenz/rq/actions/workflows/rq-core.yml/badge.svg)](https://github.com/TheRealLorenz/rq/actions/workflows/rq-core.yml) [![rq-cli](https://github.com/TheRealLorenz/rq/actions/workflows/rq-cli.yml/badge.svg)](https://github.com/TheRealLorenz/rq/actions/workflows/rq-cli.yml)
 
-![preview](./preview.gif)
+![demo](./demo.gif)
+<p align="center"><em>demo generated with <a href="https://github.com/charmbracelet/vhs">vhs</a></em></p>
 
 `rq` is an interactive HTTP client that parses and execute requests. It attempts to provide a minimal CLI 
 alternative to [vscode-restclient](https://github.com/Huachao/vscode-restclient).
