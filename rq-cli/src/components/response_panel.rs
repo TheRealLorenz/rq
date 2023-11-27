@@ -16,6 +16,12 @@ use super::{
     BlockComponent, HandleResult, HandleSuccess,
 };
 
+pub const KEYMAPS: &[(&str, &str); 3] = &[
+    ("↓/↑ j/k", "scroll down/up"),
+    ("Enter", "send request"),
+    ("s", "save"),
+];
+
 #[derive(Copy, Clone, Default)]
 enum SaveOption {
     #[default]

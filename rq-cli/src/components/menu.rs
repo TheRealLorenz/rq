@@ -6,6 +6,8 @@ use ratatui::{
 
 use super::BlockComponent;
 
+pub const KEYMAPS: &[(&str, &str); 2] = &[("↓/↑ j/k", "next/previous"), ("Enter", "select")];
+
 pub trait MenuItem {
     fn render(&self) -> Vec<Line<'_>>;
     fn render_highlighted(&self) -> Vec<Line<'_>> {
