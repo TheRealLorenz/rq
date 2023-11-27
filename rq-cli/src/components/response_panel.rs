@@ -5,8 +5,11 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarState, Wrap},
 };
-use rq_core::request::{Content, Response, StatusCode};
-use std::fmt::{Display, Write};
+use rq_core::request::{mime::Payload, Response, StatusCode};
+use std::{
+    fmt::{Display, Write},
+    iter,
+};
 use tui_input::Input;
 
 use super::{
@@ -59,6 +62,7 @@ pub struct ResponsePanel {
     input_popup: Option<Popup<Input>>,
     save_option: SaveOption,
     save_menu: Option<Popup<Menu<SaveOption>>>,
+    show_raw: bool,
 }
 
 impl ResponsePanel {
@@ -80,9 +84,9 @@ impl ResponsePanel {
         self.scroll = self.scroll.saturating_sub(1);
     }
 
-    fn body(&self) -> anyhow::Result<Content> {
+    fn body(&self) -> anyhow::Result<Payload> {
         match &self.state {
-            State::Received(response) => Ok(response.body.clone()),
+            State::Received(response) => Ok(response.payload.clone()),
             State::Empty | State::Loading => Err(anyhow!("Request not sent")),
         }
     }
@@ -98,17 +102,43 @@ impl ResponsePanel {
                         acc
                     });
 
+                let body = self.body_as_string().join("\n");
+
                 let s = format!(
-                    "{} {}\n{headers}\n\n{}",
-                    response.version,
-                    response.status,
-                    self.body()?
+                    "{} {}\n{headers}\n\n{body}",
+                    response.version, response.status
                 );
 
                 Ok(s)
             }
             State::Empty | State::Loading => Err(anyhow!("Request not sent")),
         }
+    }
+
+    fn body_as_string(&self) -> Vec<String> {
+        match self.body() {
+            Ok(body) => match body {
+                Payload::Text(t) => iter::once(format!("decoded with encoding: '{}'", t.charset))
+                    .chain(t.text.lines().map(|s| s.to_string()))
+                    .collect(),
+                Payload::Bytes(b) if self.show_raw => iter::once("lossy utf-8 decode".to_string())
+                    .chain(
+                        String::from_utf8_lossy(&b.bytes)
+                            .lines()
+                            .map(|s| s.to_string()),
+                    )
+                    .collect(),
+                Payload::Bytes(_) => vec!["raw bytes".into()],
+            },
+            Err(e) => vec![e.to_string()],
+        }
+    }
+
+    fn render_body(&self) -> Vec<Line> {
+        let mut lines: Vec<Line> = self.body_as_string().into_iter().map(Line::from).collect();
+        lines[0].patch_style(Style::default().add_modifier(Modifier::ITALIC));
+
+        lines
     }
 }
 
@@ -127,8 +157,8 @@ impl BlockComponent for ResponsePanel {
                     let to_save = match self.save_option {
                         SaveOption::All => self.to_string()?.into(),
                         SaveOption::Body => match self.body()? {
-                            Content::Bytes(b) => b,
-                            Content::Text(t) => t.into(),
+                            Payload::Bytes(b) => b.bytes,
+                            Payload::Text(t) => t.text.into(),
                         },
                     };
 
@@ -148,26 +178,39 @@ impl BlockComponent for ResponsePanel {
             }
         }
 
-        if let Some(menu) = self.save_menu.as_mut() {
-            match menu.on_event(key_event)? {
-                HandleSuccess::Consumed => return Ok(HandleSuccess::Consumed),
-                HandleSuccess::Ignored => (),
-            }
+        if self.save_menu.is_some() {
+            let extension = self
+                .body()
+                .ok()
+                .map(|payload| match payload {
+                    Payload::Bytes(b) => b.extension.unwrap_or_default(),
+                    Payload::Text(t) => t.extension.unwrap_or_default(),
+                })
+                .unwrap_or_default();
 
-            match key_event.code {
-                KeyCode::Enter => {
-                    self.save_option = *menu.selected();
-                    self.save_menu = None;
-                    self.input_popup = Some(Popup::new(Input::from("")));
-
-                    return Ok(HandleSuccess::Consumed);
+            if let Some(menu) = self.save_menu.as_mut() {
+                match menu.on_event(key_event)? {
+                    HandleSuccess::Consumed => return Ok(HandleSuccess::Consumed),
+                    HandleSuccess::Ignored => (),
                 }
-                KeyCode::Esc => {
-                    self.save_menu = None;
 
-                    return Ok(HandleSuccess::Consumed);
+                match key_event.code {
+                    KeyCode::Enter => {
+                        self.save_option = *menu.selected();
+                        self.save_menu = None;
+                        self.input_popup = Some(Popup::new(
+                            Input::from(".".to_string() + extension.as_str()).with_cursor(0),
+                        ));
+
+                        return Ok(HandleSuccess::Consumed);
+                    }
+                    KeyCode::Esc => {
+                        self.save_menu = None;
+
+                        return Ok(HandleSuccess::Consumed);
+                    }
+                    _ => (),
                 }
-                _ => (),
             }
         }
 
@@ -189,11 +232,6 @@ impl BlockComponent for ResponsePanel {
         area: ratatui::prelude::Rect,
         block: ratatui::widgets::Block,
     ) {
-        let body = match self.body() {
-            Ok(x) => x.to_string(),
-            Err(e) => e.to_string(),
-        };
-
         let content = match &self.state {
             State::Received(response) => {
                 let mut lines = vec![];
@@ -222,9 +260,7 @@ impl BlockComponent for ResponsePanel {
                 // Body
                 // with initial empty line
                 lines.push(Line::from(""));
-                for line in body.lines() {
-                    lines.push(line.into());
-                }
+                lines.append(&mut self.render_body());
 
                 lines
             }
@@ -245,7 +281,7 @@ impl BlockComponent for ResponsePanel {
         let content_length = content.len();
 
         let component = Paragraph::new(content)
-            .wrap(Wrap { trim: true })
+            .wrap(Wrap { trim: false })
             .scroll((self.scroll, 0))
             .block(block);
 
