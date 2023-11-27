@@ -19,10 +19,11 @@ use super::{
     BlockComponent, HandleResult, HandleSuccess,
 };
 
-pub const KEYMAPS: &[(&str, &str); 3] = &[
+pub const KEYMAPS: &[(&str, &str); 4] = &[
     ("↓/↑ j/k", "scroll down/up"),
     ("Enter", "send request"),
     ("s", "save"),
+    ("r", "show raw bytes"),
 ];
 
 #[derive(Copy, Clone, Default)]
@@ -225,6 +226,9 @@ impl BlockComponent for ResponsePanel {
             KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
             KeyCode::Char('s') => {
                 self.save_menu = Some(Popup::new(Menu::new(SaveOption::iterator().collect())));
+            }
+            KeyCode::Char('r') => {
+                self.show_raw = !self.show_raw;
             }
             _ => return Ok(HandleSuccess::Ignored),
         };
