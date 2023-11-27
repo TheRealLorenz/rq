@@ -125,10 +125,10 @@ impl ResponsePanel {
     fn body_as_string(&self) -> Vec<String> {
         match self.body() {
             Ok(body) => match body {
-                Payload::Text(t) => iter::once(format!("decoded with encoding: '{}'", t.charset))
+                Payload::Text(t) => iter::once(format!("decoded with encoding '{}':", t.charset))
                     .chain(t.text.lines().map(|s| s.to_string()))
                     .collect(),
-                Payload::Bytes(b) if self.show_raw => iter::once("lossy utf-8 decode".to_string())
+                Payload::Bytes(b) if self.show_raw => iter::once("lossy utf-8 decode:".to_string())
                     .chain(
                         String::from_utf8_lossy(&b.bytes)
                             .lines()
@@ -143,7 +143,9 @@ impl ResponsePanel {
 
     fn render_body(&self) -> Vec<Line> {
         let mut lines: Vec<Line> = self.body_as_string().into_iter().map(Line::from).collect();
-        lines[0].patch_style(Style::default().add_modifier(Modifier::ITALIC));
+        lines[0].patch_style(
+            Style::default().add_modifier(Modifier::ITALIC.union(Modifier::UNDERLINED)),
+        );
 
         lines
     }
