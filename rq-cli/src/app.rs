@@ -13,12 +13,15 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
 use crate::components::{
-    menu::{Menu, MenuItem},
+    legend::Legend,
+    menu::{self, Menu, MenuItem},
     message_dialog::{Message, MessageDialog},
     popup::Popup,
-    response_panel::ResponsePanel,
+    response_panel::{self, ResponsePanel},
     BlockComponent, HandleSuccess,
 };
+
+const KEYMAPS: &[(&str, &str); 1] = &[("Esc/q", "exit")];
 
 #[derive(Default)]
 enum FocusState {
@@ -199,19 +202,36 @@ impl App {
     }
 
     pub fn draw(&self, f: &mut crate::terminal::Frame<'_>) {
-        // Create two chunks with equal screen space
-        let [list_chunk, response_chunk] = {
+        let [main_chunk, legend_chunk] = {
             let x = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(1), Constraint::Length(1)])
                 .split(f.size());
 
             [x[0], x[1]]
         };
 
-        let (list_border_style, response_border_style) = match self.focus {
-            FocusState::RequestsList => (Style::default().fg(Color::Blue), Style::default()),
-            FocusState::ResponseBuffer => (Style::default(), Style::default().fg(Color::Blue)),
+        // Create two chunks with equal screen space
+        let [list_chunk, response_chunk] = {
+            let x = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .split(main_chunk);
+
+            [x[0], x[1]]
+        };
+
+        let (list_border_style, response_border_style, focused_keymaps) = match self.focus {
+            FocusState::RequestsList => (
+                Style::default().fg(Color::Blue),
+                Style::default(),
+                menu::KEYMAPS.iter(),
+            ),
+            FocusState::ResponseBuffer => (
+                Style::default(),
+                Style::default().fg(Color::Blue),
+                response_panel::KEYMAPS.iter(),
+            ),
         };
 
         let list_block = Block::default()
@@ -226,6 +246,11 @@ impl App {
         self.request_menu.render(f, list_chunk, list_block);
         let response_panel = &self.responses[self.request_menu.idx()];
         response_panel.render(f, response_chunk, response_block);
+        Legend::new(KEYMAPS.iter().chain(focused_keymaps)).render(
+            f,
+            legend_chunk,
+            Block::default(),
+        );
 
         if let Some(popup) = self.message_popup.as_ref() {
             popup.render(f, f.size(), Block::default().borders(Borders::ALL));
