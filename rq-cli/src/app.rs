@@ -181,6 +181,9 @@ impl App {
             KeyCode::Enter => match self.focus {
                 FocusState::RequestsList => self.focus = FocusState::ResponseBuffer,
                 FocusState::ResponseBuffer => {
+                    let index = self.request_menu.idx();
+                    self.responses[index].set_loading();
+
                     self.req_tx
                         .send((
                             self.request_menu.selected().clone(),
@@ -232,7 +235,7 @@ impl App {
     pub fn update(&mut self) {
         // Poll for request responses
         if let Ok((res, i)) = self.res_rx.try_recv() {
-            self.responses[i] = ResponsePanel::from(res);
+            self.responses[i].set_response(res);
         }
 
         if self.message_popup.is_none() {

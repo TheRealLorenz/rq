@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use crossterm::event::KeyCode;
 use ratatui::{
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarState, Wrap},
 };
@@ -45,22 +45,29 @@ impl MenuItem for SaveOption {
 }
 
 #[derive(Clone, Default)]
+enum State {
+    #[default]
+    Empty,
+    Loading,
+    Received(Response),
+}
+
+#[derive(Clone, Default)]
 pub struct ResponsePanel {
-    content: Option<Response>,
+    state: State,
     scroll: u16,
     input_popup: Option<Popup<Input>>,
     save_option: SaveOption,
     save_menu: Option<Popup<Menu<SaveOption>>>,
 }
 
-impl From<Response> for ResponsePanel {
-    fn from(value: Response) -> Self {
-        let default = Self::default();
+impl ResponsePanel {
+    pub fn set_loading(&mut self) {
+        self.state = State::Loading;
+    }
 
-        Self {
-            content: Some(value),
-            ..default
-        }
+    pub fn set_response(&mut self, value: Response) {
+        self.state = State::Received(value)
     }
 }
 
@@ -74,15 +81,15 @@ impl ResponsePanel {
     }
 
     fn body(&self) -> anyhow::Result<Content> {
-        match &self.content {
-            Some(response) => Ok(response.body.clone()),
-            None => Err(anyhow!("Request not sent")),
+        match &self.state {
+            State::Received(response) => Ok(response.body.clone()),
+            State::Empty | State::Loading => Err(anyhow!("Request not sent")),
         }
     }
 
     fn to_string(&self) -> anyhow::Result<String> {
-        match &self.content {
-            Some(response) => {
+        match &self.state {
+            State::Received(response) => {
                 let headers = response
                     .headers
                     .iter()
@@ -100,7 +107,7 @@ impl ResponsePanel {
 
                 Ok(s)
             }
-            None => Err(anyhow!("Request not sent")),
+            State::Empty | State::Loading => Err(anyhow!("Request not sent")),
         }
     }
 }
@@ -187,8 +194,8 @@ impl BlockComponent for ResponsePanel {
             Err(e) => e.to_string(),
         };
 
-        let content = match &self.content {
-            Some(response) => {
+        let content = match &self.state {
+            State::Received(response) => {
                 let mut lines = vec![];
 
                 // First line
@@ -221,7 +228,18 @@ impl BlockComponent for ResponsePanel {
 
                 lines
             }
-            None => vec![Line::styled("<Empty>", Style::default().fg(Color::Yellow))],
+            State::Empty => vec![Line::styled(
+                "Empty",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::ITALIC),
+            )],
+            State::Loading => vec![Line::styled(
+                "Loading...",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::ITALIC),
+            )],
         };
 
         let content_length = content.len();
