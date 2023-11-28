@@ -15,7 +15,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use crate::components::{
     legend::Legend,
     menu::{self, Menu, MenuItem},
-    message_dialog::{Message, MessageDialog},
+    message_dialog::{self, Message, MessageDialog},
     popup::Popup,
     response_panel::{self, ResponsePanel},
     BlockComponent, HandleSuccess,
@@ -264,7 +264,8 @@ impl App {
         }
 
         if self.message_popup.is_none() {
-            self.message_popup = MessageDialog::pop_message().map(Popup::new);
+            self.message_popup = MessageDialog::pop_message()
+                .map(|x| Popup::new(x).with_legend(message_dialog::KEYMAPS.iter()));
         }
     }
 

@@ -6,19 +6,20 @@ use ratatui::{
 
 use super::BlockComponent;
 
-pub struct Legend<'a> {
-    keymaps: Vec<&'a (&'a str, &'a str)>,
+#[derive(Clone)]
+pub struct Legend {
+    keymaps: Vec<&'static (&'static str, &'static str)>,
 }
 
-impl<'a> Legend<'a> {
-    pub fn new<I: Iterator<Item = &'a (&'a str, &'a str)>>(keymaps: I) -> Self {
+impl Legend {
+    pub fn new<I: Iterator<Item = &'static (&'static str, &'static str)>>(keymaps: I) -> Self {
         Self {
             keymaps: keymaps.collect(),
         }
     }
 }
 
-impl BlockComponent for Legend<'_> {
+impl BlockComponent for Legend {
     fn render(
         &self,
         frame: &mut crate::terminal::Frame,

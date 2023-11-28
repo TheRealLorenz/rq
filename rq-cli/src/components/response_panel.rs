@@ -13,7 +13,7 @@ use std::{
 use tui_input::Input;
 
 use super::{
-    menu::{Menu, MenuItem},
+    menu::{self, Menu, MenuItem},
     message_dialog::{Message, MessageDialog},
     popup::Popup,
     BlockComponent, HandleResult, HandleSuccess,
@@ -207,9 +207,12 @@ impl BlockComponent for ResponsePanel {
                     KeyCode::Enter => {
                         self.save_option = *menu.selected();
                         self.save_menu = None;
-                        self.input_popup = Some(Popup::new(
-                            Input::from(".".to_string() + extension.as_str()).with_cursor(0),
-                        ));
+                        self.input_popup = Some(
+                            Popup::new(
+                                Input::from(".".to_string() + extension.as_str()).with_cursor(0),
+                            )
+                            .with_legend(iter::once(&("Esc", "close")).chain(menu::KEYMAPS.iter())),
+                        );
 
                         return Ok(HandleSuccess::Consumed);
                     }
@@ -227,7 +230,10 @@ impl BlockComponent for ResponsePanel {
             KeyCode::Down | KeyCode::Char('j') => self.scroll_down(),
             KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
             KeyCode::Char('s') => {
-                self.save_menu = Some(Popup::new(Menu::new(SaveOption::iterator().collect())));
+                self.save_menu = Some(
+                    Popup::new(Menu::new(SaveOption::iterator().collect()))
+                        .with_legend(iter::once(&("Esc", "close")).chain(menu::KEYMAPS.iter())),
+                );
             }
             KeyCode::Char('r') => {
                 self.show_raw = !self.show_raw;
