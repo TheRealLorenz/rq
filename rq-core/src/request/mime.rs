@@ -39,10 +39,9 @@ impl Payload {
                     (mime::TEXT, _) | (_, mime::JSON) => {
                         let charset = mime
                             .get_param("charset")
-                            .map(|charset| charset.to_string())
-                            .unwrap_or("utf-8".into());
+                            .map_or("utf-8".into(), |charset| charset.to_string());
                         let (text, encoding) =
-                            decode_with_encoding(response.bytes().await.unwrap(), &charset).await;
+                            decode_with_encoding(&response.bytes().await.unwrap(), &charset);
                         Payload::Text(TextPayload {
                             charset: encoding.name().to_owned(),
                             text,
@@ -81,5 +80,5 @@ fn parse_extension(name: Name) -> Option<String> {
         mime::XML => Some("xml"),
         _ => None,
     }
-    .map(|extension| extension.to_string())
+    .map(str::to_string)
 }

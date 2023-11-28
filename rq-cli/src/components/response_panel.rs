@@ -78,7 +78,7 @@ impl ResponsePanel {
     }
 
     pub fn set_response(&mut self, value: Response) {
-        self.state = State::Received(value)
+        self.state = State::Received(value);
     }
 }
 
@@ -126,13 +126,13 @@ impl ResponsePanel {
         match self.body() {
             Ok(body) => match body {
                 Payload::Text(t) => iter::once(format!("decoded with encoding '{}':", t.charset))
-                    .chain(t.text.lines().map(|s| s.to_string()))
+                    .chain(t.text.lines().map(str::to_string))
                     .collect(),
                 Payload::Bytes(b) if self.show_raw => iter::once("lossy utf-8 decode:".to_string())
                     .chain(
                         String::from_utf8_lossy(&b.bytes)
                             .lines()
-                            .map(|s| s.to_string()),
+                            .map(str::to_string),
                     )
                     .collect(),
                 Payload::Bytes(_) => vec!["raw bytes".into()],

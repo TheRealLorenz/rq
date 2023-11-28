@@ -24,8 +24,8 @@ static CLIENT: Lazy<Client> = Lazy::new(|| {
 pub struct Response {
     pub status: StatusCode,
     pub version: String,
-    pub payload: Payload,
     pub headers: HeaderMap,
+    pub payload: Payload,
 }
 
 impl Response {
