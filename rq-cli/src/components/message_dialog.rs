@@ -15,8 +15,6 @@ lazy_static! {
     static ref MESSAGES: Arc<Mutex<VecDeque<Message>>> = Arc::new(Mutex::new(VecDeque::new()));
 }
 
-pub const KEYMAPS: &[(&str, &str); 1] = &[("any", "dismiss")];
-
 #[derive(Clone)]
 pub enum Message {
     Info(String),
@@ -29,6 +27,8 @@ pub struct MessageDialog {
 }
 
 impl MessageDialog {
+    pub const KEYMAPS: &'static [(&'static str, &'static str); 1] = &[("any", "dismiss")];
+
     pub fn push_message(content: Message) {
         MESSAGES.as_ref().lock().unwrap().push_back(content);
     }

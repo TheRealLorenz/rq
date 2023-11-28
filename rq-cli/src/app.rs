@@ -14,14 +14,12 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
 use crate::components::{
     legend::Legend,
-    menu::{self, Menu, MenuItem},
-    message_dialog::{self, Message, MessageDialog},
+    menu::{Menu, MenuItem},
+    message_dialog::{Message, MessageDialog},
     popup::Popup,
-    response_panel::{self, ResponsePanel},
+    response_panel::ResponsePanel,
     BlockComponent, HandleSuccess,
 };
-
-const KEYMAPS: &[(&str, &str); 1] = &[("Esc/q", "exit")];
 
 #[derive(Default)]
 enum FocusState {
@@ -119,6 +117,8 @@ fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(R
 }
 
 impl App {
+    const KEYMAPS: &'static [(&'static str, &'static str); 1] = &[("Esc/q", "exit")];
+
     pub fn new(file_path: String, http_file: HttpFile) -> Self {
         let (req_tx, req_rx) = channel::<(HttpRequest, usize)>(1);
         let (res_tx, res_rx) = channel::<(Response, usize)>(1);
@@ -225,12 +225,12 @@ impl App {
             FocusState::RequestsList => (
                 Style::default().fg(Color::Blue),
                 Style::default(),
-                menu::KEYMAPS.iter(),
+                Menu::<HttpRequest>::KEYMAPS.iter(),
             ),
             FocusState::ResponseBuffer => (
                 Style::default(),
                 Style::default().fg(Color::Blue),
-                response_panel::KEYMAPS.iter(),
+                ResponsePanel::KEYMAPS.iter(),
             ),
         };
 
@@ -246,7 +246,7 @@ impl App {
         self.request_menu.render(f, list_chunk, list_block);
         let response_panel = &self.responses[self.request_menu.idx()];
         response_panel.render(f, response_chunk, response_block);
-        Legend::new(KEYMAPS.iter().chain(focused_keymaps)).render(
+        Legend::new(Self::KEYMAPS.iter().chain(focused_keymaps)).render(
             f,
             legend_chunk,
             Block::default(),
@@ -265,7 +265,7 @@ impl App {
 
         if self.message_popup.is_none() {
             self.message_popup = MessageDialog::pop_message()
-                .map(|x| Popup::new(x).with_legend(message_dialog::KEYMAPS.iter()));
+                .map(|x| Popup::new(x).with_legend(MessageDialog::KEYMAPS.iter()));
         }
     }
 

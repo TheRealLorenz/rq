@@ -13,18 +13,11 @@ use std::{
 use tui_input::Input;
 
 use super::{
-    menu::{self, Menu, MenuItem},
+    menu::{Menu, MenuItem},
     message_dialog::{Message, MessageDialog},
     popup::Popup,
     BlockComponent, HandleResult, HandleSuccess,
 };
-
-pub const KEYMAPS: &[(&str, &str); 4] = &[
-    ("↓/↑ j/k", "scroll down/up"),
-    ("Enter", "send request"),
-    ("s", "save"),
-    ("r", "show raw bytes"),
-];
 
 #[derive(Copy, Clone, Default)]
 enum SaveOption {
@@ -73,6 +66,13 @@ pub struct ResponsePanel {
 }
 
 impl ResponsePanel {
+    pub const KEYMAPS: &'static [(&'static str, &'static str); 4] = &[
+        ("↓/↑ j/k", "scroll down/up"),
+        ("Enter", "send request"),
+        ("s", "save"),
+        ("r", "show raw bytes"),
+    ];
+
     pub fn set_loading(&mut self) {
         self.state = State::Loading;
     }
@@ -211,7 +211,10 @@ impl BlockComponent for ResponsePanel {
                             Popup::new(
                                 Input::from(".".to_string() + extension.as_str()).with_cursor(0),
                             )
-                            .with_legend(iter::once(&("Esc", "close")).chain(menu::KEYMAPS.iter())),
+                            .with_legend(
+                                iter::once(&("Esc", "close"))
+                                    .chain(Menu::<SaveOption>::KEYMAPS.iter()),
+                            ),
                         );
 
                         return Ok(HandleSuccess::Consumed);
@@ -231,8 +234,9 @@ impl BlockComponent for ResponsePanel {
             KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
             KeyCode::Char('s') => {
                 self.save_menu = Some(
-                    Popup::new(Menu::new(SaveOption::iterator().collect()))
-                        .with_legend(iter::once(&("Esc", "close")).chain(menu::KEYMAPS.iter())),
+                    Popup::new(Menu::new(SaveOption::iterator().collect())).with_legend(
+                        iter::once(&("Esc", "close")).chain(Menu::<SaveOption>::KEYMAPS.iter()),
+                    ),
                 );
             }
             KeyCode::Char('r') => {
