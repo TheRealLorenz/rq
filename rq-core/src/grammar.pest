@@ -1,4 +1,4 @@
-file = { SOI ~ (delimiter | request)* ~ EOI}
+file = { SOI ~ (request ~ (delimiter ~ request)*)? ~ EOI}
 
 request = {	
 	request_line ~
