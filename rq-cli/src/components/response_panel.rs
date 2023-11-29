@@ -195,6 +195,7 @@ impl BlockComponent for ResponsePanel {
                     Payload::Bytes(b) => b.extension.unwrap_or_default(),
                     Payload::Text(t) => t.extension.unwrap_or_default(),
                 })
+                .map(|s| ".".to_string() + s.as_str())
                 .unwrap_or_default();
 
             if let Some(menu) = self.save_menu.as_mut() {
@@ -208,10 +209,7 @@ impl BlockComponent for ResponsePanel {
                         self.save_option = *menu.selected();
                         self.save_menu = None;
                         self.input_popup = Some(
-                            Popup::new(
-                                Input::from(".".to_string() + extension.as_str()).with_cursor(0),
-                            )
-                            .with_legend(
+                            Popup::new(Input::from(extension).with_cursor(0)).with_legend(
                                 iter::once(&("Esc", "close"))
                                     .chain(Menu::<SaveOption>::KEYMAPS.iter()),
                             ),
