@@ -70,7 +70,7 @@ impl ResponsePanel {
         ("↓/↑ j/k", "scroll down/up"),
         ("Enter", "send request"),
         ("s", "save"),
-        ("r", "show raw bytes"),
+        ("t", "toggle raw bytes"),
     ];
 
     pub fn set_loading(&mut self) {
@@ -237,7 +237,7 @@ impl BlockComponent for ResponsePanel {
                     ),
                 );
             }
-            KeyCode::Char('r') => {
+            KeyCode::Char('t') => {
                 self.show_raw = !self.show_raw;
             }
             _ => return Ok(HandleSuccess::Ignored),
