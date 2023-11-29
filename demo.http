@@ -12,8 +12,13 @@ Bar: Baz
 
 ###
 
-PUT https://httpin.org/put
+PUT https://httpbin.org/put
 
 {
     "foo": "bar"
 }
+
+###
+
+GET https://httpbin.org/get?param1=2&param2=3
+

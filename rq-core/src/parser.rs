@@ -59,6 +59,7 @@ fn http_version_from_str(input: &str) -> Version {
 pub struct HttpRequest {
     pub method: Method,
     pub url: String,
+    pub query: HashMap<String, String>,
     pub version: Version,
     headers: HttpHeaders,
     pub body: String,
@@ -80,6 +81,23 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
             .unwrap_or_default();
 
         let url = pairs.next().unwrap().as_str().to_string();
+
+        let query = pairs
+            .next_if(|pair| pair.as_rule() == Rule::query)
+            .map(|pair| {
+                pair.into_inner()
+                    .map(|pair| {
+                        let mut pairs = pair.into_inner();
+
+                        let key = pairs.next().unwrap().as_str().to_string();
+                        let value = pairs.next().unwrap().as_str().to_string();
+
+                        (key, value)
+                    })
+                    .collect::<HashMap<String, String>>()
+            })
+            .unwrap_or_default();
+
         let version = pairs
             .next_if(|pair| pair.as_rule() == Rule::version)
             .map(|pair| http_version_from_str(pair.as_str()))
@@ -98,6 +116,7 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
         Self {
             method,
             url,
+            query,
             version,
             headers,
             body,

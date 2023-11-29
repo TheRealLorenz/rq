@@ -30,10 +30,41 @@ enum FocusState {
 
 impl MenuItem for HttpRequest {
     fn render(&self) -> Vec<ratatui::text::Line<'_>> {
-        let mut lines = vec![Line::from(vec![
+        let mut lines = Vec::new();
+
+        let mut first_line_spans = vec![
             Span::styled(self.method.to_string(), Style::default().fg(Color::Green)),
-            Span::raw(format!(" {} {:?}", self.url, self.version)),
-        ])];
+            Span::raw(" "),
+            Span::raw(self.url.as_str()),
+        ];
+        let version_span = Span::raw(format!(" {:?}", self.version));
+
+        let mut query = self
+            .query
+            .iter()
+            .enumerate()
+            .map(|(i, (k, v))| {
+                Line::from(vec![
+                    Span::raw(" ".repeat(self.method.to_string().len() + 1)),
+                    Span::styled(
+                        if i == 0 { "?" } else { "&" },
+                        Style::default().fg(Color::Blue),
+                    ),
+                    Span::raw(k),
+                    Span::raw("="),
+                    Span::raw(v),
+                ])
+            })
+            .collect::<Vec<_>>();
+
+        if query.is_empty() {
+            first_line_spans.push(version_span);
+            lines.push(Line::from(first_line_spans));
+        } else {
+            lines.push(Line::from(first_line_spans));
+            query.last_mut().unwrap().spans.push(version_span);
+            lines.extend(query);
+        }
 
         let headers: Vec<Line> = self
             .headers()

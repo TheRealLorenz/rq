@@ -7,11 +7,16 @@ request = {
     body?
 }
 
-request_line = _{ (method ~ " "+)? ~ uri ~ (" "+ ~ version)? ~ NEWLINE }
-uri = { (!whitespace ~ ANY)+ }
+request_line = _{ (method ~ " "+)? ~ uri ~ query? ~ (" "+ ~ version)? ~ NEWLINE }
+uri = { (!(whitespace| "?") ~ ANY)+ }
 method = { ("GET" | "DELETE" | "POST" | "PUT") }
 version = { "HTTP/" ~ ("0.9" | "1.0" | "1.1" | "2.0" | "3.0") }
 whitespace = _{ " " | "\t" | NEWLINE }
+
+query = { "?" ~ query_item ~ ("&" ~ query_item)* }
+query_item = { query_name ~ "=" ~ query_value }
+query_name = { (!(NEWLINE | "=") ~ ANY)+ }
+query_value = { (!(NEWLINE | "&") ~ ANY)+ }
 
 headers = { header+ }
 header = { header_name ~ ":" ~ whitespace ~ header_value ~ NEWLINE }
