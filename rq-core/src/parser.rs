@@ -265,4 +265,18 @@ GET test.dev HTTP/1.0
         let file = assert_parses(input);
         assert_eq!(file.requests.len(), 2);
     }
+
+    #[test]
+    fn test_query_params() {
+        let input = r#"
+POST test.dev?foo=bar&baz=2 HTTP/1.0
+authorization: token
+
+"#;
+        let file = assert_parses(input);
+        assert_eq!(file.requests.len(), 1);
+        assert_eq!(file.requests[0].query.len(), 2);
+        assert_eq!(file.requests[0].query.get("foo").unwrap(), "bar");
+        assert_eq!(file.requests[0].query.get("baz").unwrap(), "2");
+    }
 }
