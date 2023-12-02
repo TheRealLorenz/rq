@@ -299,4 +299,20 @@ authorization: token
         assert_eq!(file.requests[0].query.get("foo").unwrap(), " bar");
         assert_eq!(file.requests[0].query.get("baz").unwrap(), "  &ciao");
     }
+
+    #[test]
+    fn test_multiline_query() {
+        let input = r#"
+POST test.dev
+?foo=bar
+        &baz=42 HTTP/1.0
+authorization: token
+
+"#;
+        let file = assert_parses(input);
+        assert_eq!(file.requests.len(), 1);
+        assert_eq!(file.requests[0].query.len(), 2);
+        assert_eq!(file.requests[0].query.get("foo").unwrap(), "bar");
+        assert_eq!(file.requests[0].query.get("baz").unwrap(), "42");
+    }
 }

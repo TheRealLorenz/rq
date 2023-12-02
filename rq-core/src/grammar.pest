@@ -13,7 +13,7 @@ method = { ("GET" | "DELETE" | "POST" | "PUT") }
 version = { "HTTP/" ~ ("0.9" | "1.0" | "1.1" | "2.0" | "3.0") }
 whitespace = _{ " " | "\t" | NEWLINE }
 
-query = { "?" ~ query_item ~ ("&" ~ query_item)* }
+query = { (NEWLINE ~ (" " | "\t")*)? ~ "?" ~ query_item ~ ((NEWLINE ~ (" " | "\t")*)? ~ "&" ~ query_item)* }
 query_item = { query_name ~ "=" ~ query_value }
 query_name = { (!(NEWLINE | "=") ~ ANY)+ }
 query_value = { (PUSH("'" | "\"") ~ (!PEEK ~ ANY)* ~ POP) | (!(NEWLINE | "&" | " ") ~ ANY)+ }
