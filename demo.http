@@ -22,3 +22,7 @@ PUT https://httpbin.org/put
 
 GET https://httpbin.org/get?param1=2&param2=3
 
+###
+
+GET https://httpbin.org/get?param1=" 2"&param2="   3"
+
