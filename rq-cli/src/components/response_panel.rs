@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use crossterm::event::KeyCode;
 use ratatui::{
+    prelude::{Constraint, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarState, Wrap},
@@ -298,25 +299,34 @@ impl BlockComponent for ResponsePanel {
             )],
         };
 
-        let content_length = content.len();
+        let content_length = content
+            .iter()
+            .map(|line| (line.width() / (block.inner(area).width) as usize) + 1)
+            .sum::<usize>();
 
-        let component = Paragraph::new(content)
+        let [paragraph_area, scrollbar_area] = {
+            let x = Layout::default()
+                .direction(ratatui::prelude::Direction::Horizontal)
+                .constraints([Constraint::Min(1), Constraint::Length(1)])
+                .split(block.inner(area));
+
+            [x[0], x[1]]
+        };
+
+        let paragraph = Paragraph::new(content)
             .wrap(Wrap { trim: false })
-            .scroll((self.scroll, 0))
-            .block(block);
+            .scroll((self.scroll, 0));
 
-        frame.render_widget(component, area);
-
-        if content_length as u16 > area.height {
-            frame.render_stateful_widget(
-                Scrollbar::default()
-                    .orientation(ratatui::widgets::ScrollbarOrientation::VerticalRight),
-                area,
-                &mut ScrollbarState::default()
-                    .position(self.scroll)
-                    .content_length(content_length as u16),
-            );
-        }
+        frame.render_widget(paragraph, paragraph_area);
+        frame.render_stateful_widget(
+            Scrollbar::default().orientation(ratatui::widgets::ScrollbarOrientation::VerticalRight),
+            scrollbar_area,
+            &mut ScrollbarState::default()
+                .position(self.scroll)
+                .content_length(content_length as u16)
+                .viewport_content_length(block.inner(area).height),
+        );
+        frame.render_widget(block, area);
 
         if let Some(input_popup) = self.input_popup.as_ref() {
             input_popup.render(
