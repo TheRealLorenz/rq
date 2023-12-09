@@ -6,14 +6,43 @@ use reqwest::header::HeaderMap;
 use reqwest::{Method, Version};
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::ops::Deref;
 use std::result::Result;
+
+use self::variables::{FillError, Fragment, TemplateString, Variable};
+
+mod variables;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
 struct HttpParser;
 
 #[derive(Clone, Debug, Default)]
-struct HttpHeaders(HashMap<String, String>);
+pub struct HttpHeaders(HashMap<String, TemplateString>);
+
+impl HttpHeaders {
+    pub fn fill(&self, params: &HashMap<String, String>) -> Result<HeaderMap, FillError> {
+        let filled = self
+            .0
+            .iter()
+            .map(|(k, v)| {
+                let v = v.fill(params)?;
+
+                Ok((k.to_owned(), v))
+            })
+            .collect::<Result<HashMap<_, _>, FillError>>()?;
+
+        Ok((&filled).try_into().unwrap())
+    }
+}
+
+impl Deref for HttpHeaders {
+    type Target = HashMap<String, TemplateString>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl Display for HttpHeaders {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -34,7 +63,7 @@ impl<'i> From<Pairs<'i, Rule>> for HttpHeaders {
             .map(|pair| {
                 let mut kv = pair.into_inner();
                 let key = kv.next().unwrap().as_str().to_string();
-                let value = kv.next().unwrap().as_str().to_string();
+                let value = parse_value(kv.next().unwrap());
 
                 (key, value)
             })
@@ -58,17 +87,27 @@ fn http_version_from_str(input: &str) -> Version {
 #[derive(Debug, Clone, Default)]
 pub struct HttpRequest {
     pub method: Method,
-    pub url: String,
+    pub url: TemplateString,
     pub query: HashMap<String, String>,
     pub version: Version,
-    headers: HttpHeaders,
-    pub body: String,
+    pub headers: HttpHeaders,
+    pub body: TemplateString,
 }
 
-impl HttpRequest {
-    pub fn headers(&self) -> HeaderMap {
-        (&self.headers.0).try_into().unwrap()
-    }
+fn parse_value(input: Pair<'_, Rule>) -> TemplateString {
+    let inner = input.into_inner();
+
+    let fragments = inner
+        .map(|pair| match pair.as_rule() {
+            Rule::variable => {
+                let var_name = pair.into_inner().nth(1).unwrap().as_str();
+                Fragment::Var(Variable::new(var_name))
+            }
+            _ => Fragment::RawText(pair.as_str().to_owned()),
+        })
+        .collect::<Vec<_>>();
+
+    TemplateString::new(fragments)
 }
 
 impl<'i> From<Pair<'i, Rule>> for HttpRequest {
@@ -80,7 +119,7 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
             .map(|pair| pair.as_str().try_into().unwrap())
             .unwrap_or_default();
 
-        let url = pairs.next().unwrap().as_str().to_string();
+        let url = parse_value(pairs.next().unwrap());
 
         let query = pairs
             .next_if(|pair| pair.as_rule() == Rule::query)
@@ -114,10 +153,7 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
             .map(|pair| pair.into_inner().into())
             .unwrap_or_default();
 
-        let body = pairs
-            .next()
-            .map(|pair| pair.as_str().to_string())
-            .unwrap_or_default();
+        let body = pairs.next().map(parse_value).unwrap_or_default();
 
         Self {
             method,
@@ -205,7 +241,7 @@ GET foo.bar HTTP/1.1
         let file = assert_parses(input);
         assert_eq!(file.requests.len(), 1);
         assert_eq!(file.requests[0].method, Method::GET);
-        assert_eq!(file.requests[0].url, "foo.bar");
+        assert_eq!(file.requests[0].url.to_string(), "foo.bar");
         assert_eq!(file.requests[0].version, Version::HTTP_11);
     }
 
@@ -242,7 +278,12 @@ authorization: Bearer xxxx
         assert_eq!(file.requests.len(), 1);
         assert_eq!(file.requests[0].headers.0.len(), 1);
         assert_eq!(
-            file.requests[0].headers.0.get("authorization").unwrap(),
+            file.requests[0]
+                .headers
+                .0
+                .get("authorization")
+                .unwrap()
+                .to_string(),
             "Bearer xxxx"
         );
     }
@@ -254,7 +295,7 @@ POST test.dev HTTP/1.0
 
 { "test": "body" }"#;
         let file = assert_parses(input);
-        assert_eq!(file.requests[0].body, "{ \"test\": \"body\" }");
+        assert_eq!(file.requests[0].body.to_string(), "{ \"test\": \"body\" }");
     }
 
     #[test]

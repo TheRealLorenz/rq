@@ -5,7 +5,7 @@ pub use reqwest::StatusCode;
 use reqwest::{header::HeaderMap, Client};
 
 use crate::parser::HttpRequest;
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use self::mime::Payload;
 
@@ -46,12 +46,12 @@ impl Response {
 
 type RequestResult = Result<Response, Box<dyn std::error::Error + Send + Sync>>;
 
-pub async fn execute(req: &HttpRequest) -> RequestResult {
+pub async fn execute(req: &HttpRequest, params: &HashMap<String, String>) -> RequestResult {
     let request = CLIENT
-        .request(req.method.clone(), &req.url)
+        .request(req.method.clone(), req.url.fill(params)?)
         .query(&req.query)
-        .headers(req.headers())
-        .body(req.body.clone());
+        .headers(req.headers.fill(params)?)
+        .body(req.body.fill(params)?);
 
     let response = request.send().await?;
 

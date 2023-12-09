@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use ratatui::{
     prelude::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
@@ -35,7 +37,7 @@ impl MenuItem for HttpRequest {
         let mut first_line_spans = vec![
             Span::styled(self.method.to_string(), Style::default().fg(Color::Green)),
             Span::raw(" "),
-            Span::raw(self.url.as_str()),
+            Span::raw(self.url.to_string()),
         ];
         let version_span = Span::raw(format!(" {:?}", self.version));
 
@@ -67,13 +69,13 @@ impl MenuItem for HttpRequest {
         }
 
         let headers: Vec<Line> = self
-            .headers()
+            .headers
             .iter()
             .map(|(k, v)| {
                 Line::from(vec![
                     Span::styled(k.to_string(), Style::default().fg(Color::Blue)),
                     Span::raw(": "),
-                    Span::raw(v.to_str().unwrap().to_string()),
+                    Span::raw(v.to_string()),
                 ])
             })
             .collect();
@@ -107,9 +109,9 @@ impl MenuItem for HttpRequest {
             lines.pop();
             lines.pop();
 
-            for line in self.body.lines() {
+            for line in self.body.to_string().lines() {
                 lines.push(Line::styled(
-                    line,
+                    line.to_owned(),
                     Style::default().fg(Color::Rgb(246, 133, 116)),
                 ));
             }
@@ -135,7 +137,7 @@ pub struct App {
 fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(Response, usize)>) {
     tokio::spawn(async move {
         while let Some((req, i)) = req_rx.recv().await {
-            let data = match rq_core::request::execute(&req).await {
+            let data = match rq_core::request::execute(&req, &HashMap::new()).await {
                 Ok(data) => data,
                 Err(e) => {
                     MessageDialog::push_message(Message::Error(e.to_string()));

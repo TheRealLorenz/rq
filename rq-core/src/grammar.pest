@@ -1,4 +1,4 @@
-file = { SOI ~ (request ~ (delimiter ~ request)*)? ~ EOI}
+file = { SOI ~ (request ~ (DELIM ~ request)*)? ~ EOI}
 
 request = {	
 	request_line ~
@@ -7,21 +7,39 @@ request = {
     body?
 }
 
-request_line = _{ (method ~ " "+)? ~ uri ~ query? ~ (" "+ ~ version)? ~ NEWLINE }
-uri = { (!(whitespace | "?") ~ ANY)+ }
+request_line = _{ (method ~ " "+)? ~ url ~ query? ~ (" "+ ~ version)? ~ NEWLINE }
+
+url = { (variable | url_fragment)+ }
+url_fragment = { (!(whitespace | VAR_BEGIN | "?") ~ ANY)+ }
+
 method = { ("GET" | "DELETE" | "POST" | "PUT") }
 version = { "HTTP/" ~ ("0.9" | "1.0" | "1.1" | "2.0" | "3.0") }
 whitespace = _{ " " | "\t" | NEWLINE }
 
 query = { (NEWLINE ~ (" " | "\t")*)? ~ "?" ~ query_item ~ ((NEWLINE ~ (" " | "\t")*)? ~ "&" ~ query_item)* }
 query_item = { query_name ~ "=" ~ query_value }
-query_name = { (!(NEWLINE | "=") ~ ANY)+ }
-query_value = { (PUSH("'" | "\"") ~ (!PEEK ~ ANY)* ~ POP) | (!(NEWLINE | "&" | " ") ~ ANY)+ }
+
+query_name = { (variable | query_name_fragment)+ }
+query_name_fragment = { (!(whitespace | VAR_BEGIN | "=") ~ ANY)+ }
+
+query_value = { (PUSH("'" | "\"") ~ (!PEEK ~ (variable | ANY))* ~ POP) | (!(NEWLINE | "&" | " ") ~ (variable | query_value_fragment))+ }
+query_value_fragment = { (!(whitespace | VAR_BEGIN | "&") ~ ANY)+ }
 
 headers = { header+ }
 header = { header_name ~ ":" ~ whitespace ~ header_value ~ NEWLINE }
-header_name = { (!(NEWLINE | ":") ~ ANY)+ }
-header_value = { (!NEWLINE ~ ANY)+ }
 
-body = { (!delimiter ~ ANY)+ }
-delimiter = { "#"{3} ~ NEWLINE+ }
+header_name = { (!(NEWLINE | ":") ~ (variable | header_name_fragment))+ }
+header_name_fragment = { (!(whitespace | VAR_BEGIN | ":") ~ ANY)+ }
+
+header_value = { (!NEWLINE ~ (variable | header_value_fragment))+ }
+header_value_fragment = { (!(NEWLINE | VAR_BEGIN) ~ ANY)+ }
+
+body = { (!DELIM ~ (variable | body_fragment))+ }
+body_fragment = { (!DELIM ~ ANY)+ }
+
+DELIM = { "#"{3} ~ NEWLINE+ }
+
+VAR_BEGIN = { "{{" }
+VAR_END = { "}}" }
+variable = { VAR_BEGIN ~ variable_name ~ VAR_END }
+variable_name = { (!(whitespace | VAR_END) ~ ANY)+ }
