@@ -135,14 +135,13 @@ pub struct App {
 fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(Response, usize)>) {
     tokio::spawn(async move {
         while let Some((req, i)) = req_rx.recv().await {
-            let data = match rq_core::request::execute(&req).await {
-                Ok(data) => data,
+            match rq_core::request::execute(&req).await {
+                Ok(data) => res_tx.send((data, i)).await.unwrap(),
                 Err(e) => {
                     MessageDialog::push_message(Message::Error(e.to_string()));
-                    return;
+                    continue;
                 }
             };
-            res_tx.send((data, i)).await.unwrap();
         }
     });
 }
