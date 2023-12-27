@@ -1,6 +1,9 @@
 use std::{collections::HashMap, fmt::Display};
 
+use pest::iterators::Pair;
 use thiserror::Error;
+
+use super::Rule;
 
 #[derive(Debug, Clone)]
 pub struct Variable {
@@ -91,4 +94,18 @@ impl Display for TemplateString {
 
         write!(f, "{s}")
     }
+}
+
+pub fn parse(var_def_block: Pair<Rule>) -> HashMap<String, String> {
+    var_def_block
+        .into_inner()
+        .map(|var_def| {
+            let mut pairs = var_def.into_inner();
+
+            let name = pairs.next().unwrap().as_str().to_string();
+            let value = pairs.next().unwrap().as_str().to_string();
+
+            (name, value)
+        })
+        .collect()
 }

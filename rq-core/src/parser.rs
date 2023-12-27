@@ -179,19 +179,29 @@ impl Display for HttpRequest {
 #[derive(Debug)]
 pub struct HttpFile {
     pub requests: Vec<HttpRequest>,
+    pub variables: HashMap<String, String>,
 }
 
 impl<'i> From<Pair<'i, Rule>> for HttpFile {
     fn from(pair: Pair<Rule>) -> Self {
-        let requests = pair
-            .into_inner()
-            .filter_map(|pair| match pair.as_rule() {
-                Rule::request => Some(pair.into()),
-                _ => None,
-            })
-            .collect();
+        let mut requests = Vec::new();
+        let mut variables = HashMap::new();
 
-        Self { requests }
+        for pair in pair.into_inner() {
+            match pair.as_rule() {
+                Rule::request => requests.push(pair.into()),
+                Rule::var_block => variables.extend(variables::parse(pair)),
+
+                Rule::EOI | Rule::DELIM => (),
+
+                _ => unreachable!(),
+            }
+        }
+
+        Self {
+            requests,
+            variables,
+        }
     }
 }
 
@@ -355,5 +365,25 @@ authorization: token
         assert_eq!(file.requests[0].query.len(), 2);
         assert_eq!(file.requests[0].query.get("foo").unwrap(), "bar");
         assert_eq!(file.requests[0].query.get("baz").unwrap(), "42");
+    }
+
+    #[test]
+    fn test_file_variable() {
+        let input = r#"
+@name = foo
+@bar = baz
+
+###
+
+POST test.dev
+?foo=bar
+        &baz=42 HTTP/1.0
+authorization: token
+
+"#;
+        let file = assert_parses(input);
+        assert_eq!(file.variables.len(), 2);
+        assert_eq!(file.variables.get("name"), Some(&"foo".into()));
+        assert_eq!(file.variables.get("bar"), Some(&"baz".into()));
     }
 }

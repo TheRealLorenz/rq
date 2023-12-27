@@ -3,7 +3,11 @@ Foo: Bar
 
 ###
 
-POST https://httpbin.org/post
+@endpoint = foo
+
+###
+
+POST https://{{endpoint}}/post
 Bar: Baz
 
 {

@@ -1,4 +1,9 @@
-file = { SOI ~ (request ~ (DELIM ~ request)*)? ~ EOI}
+file = { SOI ~ ((request | var_block) ~ (DELIM ~ (request | var_block))*)? ~ EOI}
+
+var_block = { (var_def ~ NEWLINE*)+ }
+var_def = { "@" ~ var_def_name ~ " "? ~ "=" ~ " "? ~ var_def_value }
+var_def_name = { (!whitespace ~ ANY)+ }
+var_def_value = { (PUSH("'" | "\"") ~ (!PEEK ~ (variable | ANY))* ~ POP) | (!whitespace ~ (variable | ANY))+ }
 
 request = {	
 	request_line ~
