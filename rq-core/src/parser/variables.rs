@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Display};
 use pest::iterators::Pair;
 use thiserror::Error;
 
-use super::Rule;
+use super::{values, Rule};
 
 #[derive(Debug, Clone)]
 pub struct Variable {
@@ -105,7 +105,7 @@ pub fn parse(var_def_block: Pair<Rule>) -> HashMap<String, String> {
             let name = pairs.next().unwrap().as_str().to_string();
             let value = pairs.next().unwrap().as_str().to_string();
 
-            (name, value)
+            (name, values::unquote(value))
         })
         .collect()
 }

@@ -11,6 +11,7 @@ use std::result::Result;
 
 use self::variables::{FillError, Fragment, TemplateString, Variable};
 
+mod values;
 mod variables;
 
 #[derive(Parser)]
@@ -131,13 +132,7 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
                         let key = pairs.next().unwrap().as_str().to_string();
                         let value = pairs.next().unwrap().as_str().to_string();
 
-                        for c in ['\'', '"'] {
-                            if value.starts_with(c) && value.ends_with(c) {
-                                return (key, value.trim_matches(c).to_string());
-                            }
-                        }
-
-                        (key, value)
+                        (key, values::unquote(value))
                     })
                     .collect::<HashMap<String, String>>()
             })
@@ -372,6 +367,7 @@ authorization: token
         let input = r#"
 @name = foo
 @bar = baz
+@foo = " 123"
 
 ###
 
@@ -382,8 +378,9 @@ authorization: token
 
 "#;
         let file = assert_parses(input);
-        assert_eq!(file.variables.len(), 2);
-        assert_eq!(file.variables.get("name"), Some(&"foo".into()));
-        assert_eq!(file.variables.get("bar"), Some(&"baz".into()));
+        assert_eq!(file.variables.len(), 3);
+        assert_eq!(file.variables.get("name").map(String::as_str), Some("foo"));
+        assert_eq!(file.variables.get("bar").map(String::as_str), Some("baz"));
+        assert_eq!(file.variables.get("foo").map(String::as_str), Some(" 123"));
     }
 }
