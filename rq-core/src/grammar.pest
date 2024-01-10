@@ -1,50 +1,71 @@
-file = { SOI ~ ((request | var_block) ~ (DELIM ~ (request | var_block))*)? ~ EOI}
-
-var_block = { (var_def ~ NEWLINE*)+ }
-var_def = { "@" ~ var_def_name ~ " "? ~ "=" ~ " "? ~ var_def_value }
-var_def_name = { (!whitespace ~ ANY)+ }
-var_def_value = { (PUSH("'" | "\"") ~ (!PEEK ~ (variable | ANY))* ~ POP) | (!whitespace ~ (variable | ANY))+ }
-
-request = {	
-	request_line ~
-    headers? ~
-    NEWLINE ~
-    body?
+file = {
+	SOI ~
+	((request | var_def_block) ~
+	(DELIM ~ (request | var_def_block))*)? ~
+	EOI
 }
 
-request_line = _{ (method ~ " "+)? ~ url ~ query? ~ (" "+ ~ version)? ~ NEWLINE }
+DELIM = _{ "###" }
+WHITESPACE = _{ " " }
+VAR_BEGIN = _{ "{{" }
+VAR_END = _{ "}}" }
 
-url = { (variable | url_fragment)+ }
-url_fragment = { (!(whitespace | VAR_BEGIN | "?") ~ ANY)+ }
+char = { !(" " | "\n" | "\t") ~ ANY }
 
-method = { ("GET" | "DELETE" | "POST" | "PUT") }
+request = {
+	NEWLINE* ~
+	method? ~ url ~ query? ~ version? ~ NEWLINE ~
+	headers? ~
+	NEWLINE ~
+	body? ~
+	NEWLINE*
+}
+
+method = { "GET" | "DELETE" | "POST" | "PUT" }
+
+url = ${ (var | url_fragment)+ }
+url_fragment = @{ (!(VAR_BEGIN | "?") ~ char)+ }
+
+query = @{
+	PUSH(NEWLINE ~ " "* | "") ~
+	"?" ~ query_item ~
+	(PEEK ~ "&" ~ query_item)* ~
+	DROP
+}
+query_item = ${ query_name ~ "=" ~ query_value }
+query_name = @{ (!"=" ~ char)+ }
+query_value = @{
+	(
+		PUSH("\"" | "'") ~
+		(!PEEK ~ ANY)+ ~
+		POP
+	) |
+	(!"&" ~ char)+
+}
+
 version = { "HTTP/" ~ ("0.9" | "1.0" | "1.1" | "2.0" | "3.0") }
-whitespace = _{ " " | "\t" | NEWLINE }
 
-query = { (NEWLINE ~ (" " | "\t")*)? ~ "?" ~ query_item ~ ((NEWLINE ~ (" " | "\t")*)? ~ "&" ~ query_item)* }
-query_item = { query_name ~ "=" ~ query_value }
+headers = { (header ~ NEWLINE)+ }
+header = { header_name ~ ":" ~ header_value }
+header_name = ${ (var | header_name_fragment)+ }
+header_name_fragment = @{ (!(VAR_BEGIN | ":") ~ char)+ }
+header_value = ${ (var | header_value_fragment)+ }
+header_value_fragment = @{ (!VAR_BEGIN ~ (char | " "))+ }
 
-query_name = { (variable | query_name_fragment)+ }
-query_name_fragment = { (!(whitespace | VAR_BEGIN | "=") ~ ANY)+ }
+body = ${ (var | body_fragment)+ }
+body_fragment = @{ (!(VAR_BEGIN | DELIM)~ ANY)+ }
 
-query_value = { (PUSH("'" | "\"") ~ (!PEEK ~ (variable | ANY))* ~ POP) | (!(NEWLINE | "&" | " ") ~ (variable | query_value_fragment))+ }
-query_value_fragment = { (!(whitespace | VAR_BEGIN | "&") ~ ANY)+ }
+var = { VAR_BEGIN ~ var_name ~ VAR_END }
+var_name = { (!VAR_END ~ char)+ }
 
-headers = { header+ }
-header = { header_name ~ ":" ~ whitespace ~ header_value ~ NEWLINE }
-
-header_name = { (!(NEWLINE | ":") ~ (variable | header_name_fragment))+ }
-header_name_fragment = { (!(whitespace | VAR_BEGIN | ":") ~ ANY)+ }
-
-header_value = { (!NEWLINE ~ (variable | header_value_fragment))+ }
-header_value_fragment = { (!(NEWLINE | VAR_BEGIN) ~ ANY)+ }
-
-body = { (!DELIM ~ (variable | body_fragment))+ }
-body_fragment = { (!DELIM ~ ANY)+ }
-
-DELIM = { "#"{3} ~ NEWLINE+ }
-
-VAR_BEGIN = { "{{" }
-VAR_END = { "}}" }
-variable = { VAR_BEGIN ~ variable_name ~ VAR_END }
-variable_name = { (!(whitespace | VAR_END) ~ ANY)+ }
+var_def_block = { (var_def ~ NEWLINE*)+ }
+var_def = ${ "@" ~ var_def_name ~ " "? ~ "=" ~ " "? ~ var_def_value }
+var_def_name = @{ (!"=" ~ char)+ }
+var_def_value = @{
+	(
+		PUSH("'" | "\"") ~
+		(!PEEK ~ (var | ANY))* ~
+		POP
+	) |
+	(var | char)+
+}

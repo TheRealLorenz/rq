@@ -100,7 +100,7 @@ fn parse_value(input: Pair<'_, Rule>) -> TemplateString {
 
     let fragments = inner
         .map(|pair| match pair.as_rule() {
-            Rule::variable => {
+            Rule::var => {
                 let var_name = pair.into_inner().nth(1).unwrap().as_str();
                 Fragment::Var(Variable::new(var_name))
             }
@@ -185,7 +185,7 @@ impl<'i> From<Pair<'i, Rule>> for HttpFile {
         for pair in pair.into_inner() {
             match pair.as_rule() {
                 Rule::request => requests.push(pair.into()),
-                Rule::var_block => variables.extend(variables::parse(pair)),
+                Rule::var_def_block => variables.extend(variables::parse(pair)),
 
                 Rule::EOI | Rule::DELIM => (),
 
@@ -222,13 +222,17 @@ pub fn parse(input: &str) -> Result<HttpFile, Box<Error<Rule>>> {
 
 #[cfg(test)]
 mod tests {
+    use core::panic;
+
     use super::{parse, HttpFile};
     use reqwest::{Method, Version};
 
     fn assert_parses(input: &str) -> HttpFile {
         let parsed = parse(input);
-        assert!(parsed.is_ok());
-        parsed.unwrap()
+        match parsed {
+            Ok(parsed) => parsed,
+            Err(e) => panic!("{e}"),
+        }
     }
 
     #[test]
@@ -321,13 +325,13 @@ GET test.dev HTTP/1.0
     #[test]
     fn test_query_params() {
         let input = r#"
-POST test.dev?foo=bar&baz=2 HTTP/1.0
+POST test.dev?foo=bar&baz=2&fif=fof HTTP/1.0
 authorization: token
 
 "#;
         let file = assert_parses(input);
         assert_eq!(file.requests.len(), 1);
-        assert_eq!(file.requests[0].query.len(), 2);
+        assert_eq!(file.requests[0].query.len(), 3);
         assert_eq!(file.requests[0].query.get("foo").unwrap(), "bar");
         assert_eq!(file.requests[0].query.get("baz").unwrap(), "2");
     }
@@ -350,7 +354,7 @@ authorization: token
     fn test_multiline_query() {
         let input = r#"
 POST test.dev
-?foo=bar
+        ?foo=bar
         &baz=42 HTTP/1.0
 authorization: token
 
@@ -372,7 +376,7 @@ authorization: token
 ###
 
 POST test.dev
-?foo=bar
+        ?foo=bar
         &baz=42 HTTP/1.0
 authorization: token
 
