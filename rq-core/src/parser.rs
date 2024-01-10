@@ -101,7 +101,7 @@ fn parse_value(input: Pair<'_, Rule>) -> TemplateString {
     let fragments = inner
         .map(|pair| match pair.as_rule() {
             Rule::var => {
-                let var_name = pair.into_inner().nth(1).unwrap().as_str();
+                let var_name = pair.into_inner().next().unwrap().as_str();
                 Fragment::Var(Variable::new(var_name))
             }
             _ => Fragment::RawText(pair.as_str().to_owned()),
@@ -274,6 +274,16 @@ GET foo.bar
         let file = assert_parses(input);
         assert_eq!(file.requests.len(), 1);
         assert_eq!(file.requests[0].version, Version::default());
+    }
+
+    #[test]
+    fn test_var_in_url() {
+        let input = r#"
+GET foo{{url}}bar HTTP/1.1
+
+"#;
+        let file = assert_parses(input);
+        assert_eq!(file.requests[0].url.to_string(), "foo{{url}}bar");
     }
 
     #[test]

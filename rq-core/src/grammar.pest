@@ -55,8 +55,8 @@ header_value_fragment = @{ (!VAR_BEGIN ~ (char | " "))+ }
 body = ${ (var | body_fragment)+ }
 body_fragment = @{ (!(VAR_BEGIN | DELIM)~ ANY)+ }
 
-var = { VAR_BEGIN ~ var_name ~ VAR_END }
-var_name = { (!VAR_END ~ char)+ }
+var = ${ VAR_BEGIN ~ var_name ~ VAR_END }
+var_name = @{ (!VAR_END ~ char)+ }
 
 var_def_block = { (var_def ~ NEWLINE*)+ }
 var_def = ${ "@" ~ var_def_name ~ " "? ~ "=" ~ " "? ~ var_def_value }
