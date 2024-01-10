@@ -3,7 +3,7 @@ file = { SOI ~ (request ~ (DELIM ~ request)*)? ~ EOI}
 DELIM = _{ "###" }
 WHITESPACE = _{ " " }
 
-char = { ASCII_ALPHANUMERIC | "." | "_" | "/" }
+char = { !(" " | "\n" | "\t") ~ ANY }
 
 request = {
 	NEWLINE* ~
@@ -16,7 +16,7 @@ request = {
 
 method = { "GET" | "DELETE" | "POST" | "PUT" }
 
-url = @{ (!("?") ~ char)+ }
+url = @{ (!"?" ~ char)+ }
 
 query = @{
 	PUSH(NEWLINE ~ " "* | "") ~
@@ -25,21 +25,21 @@ query = @{
 	DROP
 }
 query_item = ${ query_name ~ "=" ~ query_value }
-query_name = @{ char+ }
+query_name = @{ (!"=" ~ char)+ }
 query_value = @{
 	(
 		PUSH("\"" | "'") ~
 		(!PEEK ~ ANY)+ ~
 		POP
 	) |
-	char+
+	(!"&" ~ char)+
 }
 
 version = { "HTTP/" ~ ("0.9" | "1.0" | "1.1" | "2.0" | "3.0") }
 
 headers = { (header ~ NEWLINE)+ }
 header = { header_name ~ ": " ~ header_value }
-header_name = @{ char+ }
+header_name = @{ (!":" ~ char)+ }
 header_value = @{ (" " | char)+ }
 
 body = { (!DELIM ~ ANY)+ }
