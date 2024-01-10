@@ -1,11 +1,11 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, hash::Hash};
 
 use pest::iterators::Pair;
 use thiserror::Error;
 
 use super::{values, Rule};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Variable {
     name: String,
 }
@@ -25,13 +25,13 @@ impl Display for Variable {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Fragment {
     Var(Variable),
     RawText(String),
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
 pub struct TemplateString {
     fragments: Vec<Fragment>,
 }
@@ -39,6 +39,12 @@ pub struct TemplateString {
 impl TemplateString {
     pub fn new(fragments: Vec<Fragment>) -> Self {
         Self { fragments }
+    }
+
+    pub fn raw(s: &str) -> Self {
+        Self {
+            fragments: vec![Fragment::RawText(s.into())],
+        }
     }
 
     pub fn fill(&self, parameters: &HashMap<String, String>) -> Result<String, FillError> {

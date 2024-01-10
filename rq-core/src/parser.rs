@@ -19,7 +19,7 @@ mod variables;
 struct HttpParser;
 
 #[derive(Clone, Debug, Default)]
-pub struct HttpHeaders(HashMap<String, TemplateString>);
+pub struct HttpHeaders(HashMap<TemplateString, TemplateString>);
 
 impl HttpHeaders {
     pub fn fill(&self, params: &HashMap<String, String>) -> Result<HeaderMap, FillError> {
@@ -27,9 +27,10 @@ impl HttpHeaders {
             .0
             .iter()
             .map(|(k, v)| {
+                let k = k.fill(params)?;
                 let v = v.fill(params)?;
 
-                Ok((k.to_owned(), v))
+                Ok((k, v))
             })
             .collect::<Result<HashMap<_, _>, FillError>>()?;
 
@@ -38,7 +39,7 @@ impl HttpHeaders {
 }
 
 impl Deref for HttpHeaders {
-    type Target = HashMap<String, TemplateString>;
+    type Target = HashMap<TemplateString, TemplateString>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -63,7 +64,7 @@ impl<'i> From<Pairs<'i, Rule>> for HttpHeaders {
         let headers = pairs
             .map(|pair| {
                 let mut kv = pair.into_inner();
-                let key = kv.next().unwrap().as_str().to_string();
+                let key = parse_value(kv.next().unwrap());
                 let value = parse_value(kv.next().unwrap());
 
                 (key, value)
@@ -224,6 +225,8 @@ pub fn parse(input: &str) -> Result<HttpFile, Box<Error<Rule>>> {
 mod tests {
     use core::panic;
 
+    use crate::parser::variables::{Fragment, TemplateString, Variable};
+
     use super::{parse, HttpFile};
     use reqwest::{Method, Version};
 
@@ -300,10 +303,32 @@ authorization: Bearer xxxx
             file.requests[0]
                 .headers
                 .0
-                .get("authorization")
+                .get(&TemplateString::raw("authorization"))
                 .unwrap()
                 .to_string(),
             "Bearer xxxx"
+        );
+    }
+
+    #[test]
+    fn test_var_in_headers() {
+        let input = r#"
+POST test.dev HTTP/1.0
+aa{{name}}bb: {{value}}{{barbar}}
+
+"#;
+        let file = assert_parses(input);
+        assert_eq!(
+            file.requests[0]
+                .headers
+                .0
+                .get(&TemplateString::new(vec![
+                    Fragment::RawText("aa".into()),
+                    Fragment::Var(Variable::new("name")),
+                    Fragment::RawText("bb".into())
+                ]))
+                .map(TemplateString::to_string),
+            Some("{{value}}{{barbar}}".into())
         );
     }
 
