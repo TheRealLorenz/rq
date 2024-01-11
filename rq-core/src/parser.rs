@@ -286,7 +286,14 @@ GET foo{{url}}bar HTTP/1.1
 
 "#;
         let file = assert_parses(input);
-        assert_eq!(file.requests[0].url.to_string(), "foo{{url}}bar");
+        assert_eq!(
+            file.requests[0].url,
+            TemplateString::new(vec![
+                Fragment::RawText("foo".into()),
+                Fragment::Var(Variable::new("url")),
+                Fragment::RawText("bar".into())
+            ])
+        );
     }
 
     #[test]
@@ -319,16 +326,15 @@ aa{{name}}bb: {{value}}{{barbar}}
 "#;
         let file = assert_parses(input);
         assert_eq!(
-            file.requests[0]
-                .headers
-                .0
-                .get(&TemplateString::new(vec![
-                    Fragment::RawText("aa".into()),
-                    Fragment::Var(Variable::new("name")),
-                    Fragment::RawText("bb".into())
-                ]))
-                .map(TemplateString::to_string),
-            Some("{{value}}{{barbar}}".into())
+            file.requests[0].headers.0.get(&TemplateString::new(vec![
+                Fragment::RawText("aa".into()),
+                Fragment::Var(Variable::new("name")),
+                Fragment::RawText("bb".into())
+            ])),
+            Some(&TemplateString::new(vec![
+                Fragment::Var(Variable::new("value")),
+                Fragment::Var(Variable::new("barbar"))
+            ]))
         );
     }
 
