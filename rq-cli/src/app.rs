@@ -54,7 +54,7 @@ impl MenuItem for HttpRequest {
                     ),
                     Span::raw(k),
                     Span::raw("="),
-                    Span::raw(v),
+                    Span::raw(v.to_string()),
                 ])
             })
             .collect::<Vec<_>>();

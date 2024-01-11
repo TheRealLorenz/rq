@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, hash::Hash};
+use std::{collections::HashMap, fmt::Display, hash::Hash, ops::Deref};
 
 use pest::iterators::Pair;
 use thiserror::Error;
@@ -142,4 +142,51 @@ pub fn parse_def_block(var_def_block: Pair<Rule>) -> HashMap<String, TemplateStr
             (name, value)
         })
         .collect()
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct HashTemplateMap(HashMap<String, TemplateString>);
+
+impl HashTemplateMap {
+    pub fn fill(
+        &self,
+        params: &HashMap<String, String>,
+    ) -> Result<HashMap<String, String>, FillError> {
+        let filled = self
+            .0
+            .iter()
+            .map(|(k, v)| {
+                let v = v.fill(params)?;
+
+                Ok((k.to_owned(), v))
+            })
+            .collect::<Result<HashMap<_, _>, FillError>>()?;
+
+        Ok(filled)
+    }
+}
+
+impl Deref for HashTemplateMap {
+    type Target = HashMap<String, TemplateString>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<Pair<'_, Rule>> for HashTemplateMap {
+    fn from(value: Pair<'_, Rule>) -> Self {
+        let headers = value
+            .into_inner()
+            .map(|pair| {
+                let mut kv = pair.into_inner();
+                let key = kv.next().unwrap().as_str().to_string();
+                let value = kv.next().unwrap().into();
+
+                (key, value)
+            })
+            .collect();
+
+        Self(headers)
+    }
 }

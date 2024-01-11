@@ -49,8 +49,8 @@ type RequestResult = Result<Response, Box<dyn std::error::Error + Send + Sync>>;
 pub async fn execute(req: &HttpRequest, params: &HashMap<String, String>) -> RequestResult {
     let request = CLIENT
         .request(req.method.clone(), req.url.fill(params)?)
-        .query(&req.query)
-        .headers(req.headers.fill(params)?)
+        .query(&req.query.fill(params)?)
+        .headers((&req.headers.fill(params)?).try_into().unwrap())
         .body(req.body.fill(params)?);
 
     let response = request.send().await?;

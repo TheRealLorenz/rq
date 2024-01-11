@@ -34,13 +34,14 @@ query = @{
 }
 query_item = ${ query_name ~ "=" ~ query_value }
 query_name = @{ (!"=" ~ char)+ }
-query_value = @{
+query_value = $ { (var | query_value_fragment)+ }
+query_value_fragment = @{
 	(
 		PUSH("\"" | "'") ~
 		(!PEEK ~ ANY)+ ~
 		POP
 	) |
-	(!"&" ~ char)+
+	(!("&" | VAR_BEGIN) ~ char)+
 }
 
 version = { "HTTP/" ~ ("0.9" | "1.0" | "1.1" | "2.0" | "3.0") }
