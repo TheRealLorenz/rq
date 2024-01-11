@@ -31,6 +31,16 @@ pub enum Fragment {
     RawText(String),
 }
 
+impl Fragment {
+    pub fn raw(value: &str) -> Self {
+        Fragment::RawText(value.into())
+    }
+
+    pub fn var(name: &str) -> Self {
+        Fragment::Var(Variable::new(name))
+    }
+}
+
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
 pub struct TemplateString {
     fragments: Vec<Fragment>,

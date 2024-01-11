@@ -9,7 +9,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 use std::result::Result;
 
-use self::variables::{FillError, Fragment, TemplateString, Variable};
+use self::variables::{FillError, Fragment, TemplateString};
 
 mod values;
 mod variables;
@@ -103,9 +103,9 @@ fn parse_value(input: Pair<'_, Rule>) -> TemplateString {
         .map(|pair| match pair.as_rule() {
             Rule::var => {
                 let var_name = pair.into_inner().next().unwrap().as_str();
-                Fragment::Var(Variable::new(var_name))
+                Fragment::var(var_name)
             }
-            _ => Fragment::RawText(pair.as_str().to_owned()),
+            _ => Fragment::raw(pair.as_str()),
         })
         .collect::<Vec<_>>();
 
@@ -225,7 +225,7 @@ pub fn parse(input: &str) -> Result<HttpFile, Box<Error<Rule>>> {
 mod tests {
     use core::panic;
 
-    use crate::parser::variables::{Fragment, TemplateString, Variable};
+    use crate::parser::variables::{Fragment, TemplateString};
 
     use super::{parse, HttpFile};
     use reqwest::{Method, Version};
@@ -289,9 +289,9 @@ GET foo{{url}}bar HTTP/1.1
         assert_eq!(
             file.requests[0].url,
             TemplateString::new(vec![
-                Fragment::RawText("foo".into()),
-                Fragment::Var(Variable::new("url")),
-                Fragment::RawText("bar".into())
+                Fragment::raw("foo"),
+                Fragment::var("url"),
+                Fragment::raw("bar")
             ])
         );
     }
@@ -327,13 +327,13 @@ aa{{name}}bb: {{value}}{{barbar}}
         let file = assert_parses(input);
         assert_eq!(
             file.requests[0].headers.0.get(&TemplateString::new(vec![
-                Fragment::RawText("aa".into()),
-                Fragment::Var(Variable::new("name")),
-                Fragment::RawText("bb".into())
+                Fragment::raw("aa"),
+                Fragment::var("name"),
+                Fragment::raw("bb")
             ])),
             Some(&TemplateString::new(vec![
-                Fragment::Var(Variable::new("value")),
-                Fragment::Var(Variable::new("barbar"))
+                Fragment::var("value"),
+                Fragment::var("barbar")
             ]))
         );
     }
@@ -358,9 +358,9 @@ aaa{{var}}bbb"#;
         assert_eq!(
             file.requests[0].body,
             TemplateString::new(vec![
-                Fragment::RawText("aaa".into()),
-                Fragment::Var(Variable::new("var")),
-                Fragment::RawText("bbb".into())
+                Fragment::raw("aaa"),
+                Fragment::var("var"),
+                Fragment::raw("bbb")
             ])
         )
     }
