@@ -9,7 +9,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 use std::result::Result;
 
-use self::variables::{FillError, Fragment, TemplateString};
+use self::variables::{FillError, TemplateString};
 
 mod values;
 mod variables;
@@ -64,8 +64,8 @@ impl<'i> From<Pairs<'i, Rule>> for HttpHeaders {
         let headers = pairs
             .map(|pair| {
                 let mut kv = pair.into_inner();
-                let key = parse_value(kv.next().unwrap());
-                let value = parse_value(kv.next().unwrap());
+                let key = kv.next().unwrap().into();
+                let value = kv.next().unwrap().into();
 
                 (key, value)
             })
@@ -96,22 +96,6 @@ pub struct HttpRequest {
     pub body: TemplateString,
 }
 
-fn parse_value(input: Pair<'_, Rule>) -> TemplateString {
-    let inner = input.into_inner();
-
-    let fragments = inner
-        .map(|pair| match pair.as_rule() {
-            Rule::var => {
-                let var_name = pair.into_inner().next().unwrap().as_str();
-                Fragment::var(var_name)
-            }
-            _ => Fragment::raw(pair.as_str()),
-        })
-        .collect::<Vec<_>>();
-
-    TemplateString::new(fragments)
-}
-
 impl<'i> From<Pair<'i, Rule>> for HttpRequest {
     fn from(request: Pair<'i, Rule>) -> Self {
         let mut pairs = request.into_inner().peekable();
@@ -121,7 +105,7 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
             .map(|pair| pair.as_str().try_into().unwrap())
             .unwrap_or_default();
 
-        let url = parse_value(pairs.next().unwrap());
+        let url = pairs.next().unwrap().into();
 
         let query = pairs
             .next_if(|pair| pair.as_rule() == Rule::query)
@@ -131,9 +115,9 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
                         let mut pairs = pair.into_inner();
 
                         let key = pairs.next().unwrap().as_str().to_string();
-                        let value = pairs.next().unwrap().as_str().to_string();
+                        let value = pairs.next().unwrap().as_str();
 
-                        (key, values::unquote(value))
+                        (key, values::unquote(value).to_string())
                     })
                     .collect::<HashMap<String, String>>()
             })
@@ -149,7 +133,7 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
             .map(|pair| pair.into_inner().into())
             .unwrap_or_default();
 
-        let body = pairs.next().map(parse_value).unwrap_or_default();
+        let body = pairs.next().map(Pair::into).unwrap_or_default();
 
         Self {
             method,
@@ -175,7 +159,7 @@ impl Display for HttpRequest {
 #[derive(Debug)]
 pub struct HttpFile {
     pub requests: Vec<HttpRequest>,
-    pub variables: HashMap<String, String>,
+    pub variables: HashMap<String, TemplateString>,
 }
 
 impl<'i> From<Pair<'i, Rule>> for HttpFile {
@@ -186,7 +170,7 @@ impl<'i> From<Pair<'i, Rule>> for HttpFile {
         for pair in pair.into_inner() {
             match pair.as_rule() {
                 Rule::request => requests.push(pair.into()),
-                Rule::var_def_block => variables.extend(variables::parse(pair)),
+                Rule::var_def_block => variables.extend(variables::parse_def_block(pair)),
 
                 Rule::EOI | Rule::DELIM => (),
 
@@ -441,8 +425,39 @@ authorization: token
 "#;
         let file = assert_parses(input);
         assert_eq!(file.variables.len(), 3);
-        assert_eq!(file.variables.get("name").map(String::as_str), Some("foo"));
-        assert_eq!(file.variables.get("bar").map(String::as_str), Some("baz"));
-        assert_eq!(file.variables.get("foo").map(String::as_str), Some(" 123"));
+        assert_eq!(
+            file.variables.get("name"),
+            Some(&TemplateString::raw("foo"))
+        );
+        assert_eq!(file.variables.get("bar"), Some(&TemplateString::raw("baz")));
+        assert_eq!(
+            file.variables.get("foo"),
+            Some(&TemplateString::raw(" 123"))
+        );
+    }
+
+    #[test]
+    fn test_var_in_file_var() {
+        let input = r#"
+@name = foo
+@bar = aaa{{var}}
+@foo = " 123"
+
+###
+
+POST test.dev
+        ?foo=bar
+        &baz=42 HTTP/1.0
+authorization: token
+
+"#;
+        let file = assert_parses(input);
+        assert_eq!(
+            file.variables.get("bar"),
+            Some(&TemplateString::new(vec![
+                Fragment::raw("aaa"),
+                Fragment::var("var")
+            ]))
+        );
     }
 }

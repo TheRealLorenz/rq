@@ -83,6 +83,24 @@ impl TemplateString {
     }
 }
 
+impl From<Pair<'_, Rule>> for TemplateString {
+    fn from(value: Pair<'_, Rule>) -> Self {
+        let inner = value.into_inner();
+
+        let fragments = inner
+            .map(|pair| match pair.as_rule() {
+                Rule::var => {
+                    let var_name = pair.into_inner().next().unwrap().as_str();
+                    Fragment::var(var_name)
+                }
+                _ => Fragment::raw(values::unquote(pair.as_str())),
+            })
+            .collect::<Vec<_>>();
+
+        Self::new(fragments)
+    }
+}
+
 #[derive(Debug, Error)]
 #[error("missing field '{}'", .missing_variable.name)]
 pub struct FillError {
@@ -112,16 +130,16 @@ impl Display for TemplateString {
     }
 }
 
-pub fn parse(var_def_block: Pair<Rule>) -> HashMap<String, String> {
+pub fn parse_def_block(var_def_block: Pair<Rule>) -> HashMap<String, TemplateString> {
     var_def_block
         .into_inner()
         .map(|var_def| {
             let mut pairs = var_def.into_inner();
 
             let name = pairs.next().unwrap().as_str().to_string();
-            let value = pairs.next().unwrap().as_str().to_string();
+            let value = pairs.next().unwrap().into();
 
-            (name, values::unquote(value))
+            (name, value)
         })
         .collect()
 }

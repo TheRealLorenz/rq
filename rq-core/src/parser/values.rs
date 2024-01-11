@@ -1,7 +1,7 @@
-pub fn unquote(input: String) -> String {
+pub fn unquote(input: &str) -> &str {
     for c in ['\'', '"'] {
         if input.starts_with(c) && input.ends_with(c) {
-            return input.trim_matches(c).to_string();
+            return input.trim_matches(c);
         }
     }
 

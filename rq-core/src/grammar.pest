@@ -61,11 +61,12 @@ var_name = @{ (!VAR_END ~ char)+ }
 var_def_block = { (var_def ~ NEWLINE*)+ }
 var_def = ${ "@" ~ var_def_name ~ " "? ~ "=" ~ " "? ~ var_def_value }
 var_def_name = @{ (!"=" ~ char)+ }
-var_def_value = @{
+var_def_value = ${ (var | var_def_value_fragment)+ }
+var_def_value_fragment = @{
 	(
 		PUSH("'" | "\"") ~
-		(!PEEK ~ (var | ANY))* ~
+		(!PEEK ~ ANY)+ ~
 		POP
 	) |
-	(var | char)+
+	(!VAR_BEGIN ~ char)+
 }
