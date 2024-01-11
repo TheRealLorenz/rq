@@ -47,8 +47,7 @@ version = { "HTTP/" ~ ("0.9" | "1.0" | "1.1" | "2.0" | "3.0") }
 
 headers = { (header ~ NEWLINE)+ }
 header = { header_name ~ ":" ~ header_value }
-header_name = ${ (var | header_name_fragment)+ }
-header_name_fragment = @{ (!(VAR_BEGIN | ":") ~ char)+ }
+header_name = @{ (!":" ~ char)+ }
 header_value = ${ (var | header_value_fragment)+ }
 header_value_fragment = @{ (!VAR_BEGIN ~ (char | " "))+ }
 

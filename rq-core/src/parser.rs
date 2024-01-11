@@ -19,15 +19,14 @@ mod variables;
 struct HttpParser;
 
 #[derive(Clone, Debug, Default)]
-pub struct HttpHeaders(HashMap<TemplateString, TemplateString>);
+pub struct HttpHeaders(HashMap<String, TemplateString>);
 
 impl HttpHeaders {
     pub fn fill(&self, params: &HashMap<String, String>) -> Result<HeaderMap, FillError> {
         let filled = self
             .0
-            .iter()
+            .into_iter()
             .map(|(k, v)| {
-                let k = k.fill(params)?;
                 let v = v.fill(params)?;
 
                 Ok((k, v))
@@ -39,7 +38,7 @@ impl HttpHeaders {
 }
 
 impl Deref for HttpHeaders {
-    type Target = HashMap<TemplateString, TemplateString>;
+    type Target = HashMap<String, TemplateString>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -64,7 +63,7 @@ impl<'i> From<Pairs<'i, Rule>> for HttpHeaders {
         let headers = pairs
             .map(|pair| {
                 let mut kv = pair.into_inner();
-                let key = kv.next().unwrap().into();
+                let key = kv.next().unwrap().as_str().to_string();
                 let value = kv.next().unwrap().into();
 
                 (key, value)
@@ -294,7 +293,7 @@ authorization: Bearer xxxx
             file.requests[0]
                 .headers
                 .0
-                .get(&TemplateString::raw("authorization"))
+                .get("authorization")
                 .unwrap()
                 .to_string(),
             "Bearer xxxx"
@@ -305,16 +304,12 @@ authorization: Bearer xxxx
     fn test_var_in_headers() {
         let input = r#"
 POST test.dev HTTP/1.0
-aa{{name}}bb: {{value}}{{barbar}}
+aabb: {{value}}{{barbar}}
 
 "#;
         let file = assert_parses(input);
         assert_eq!(
-            file.requests[0].headers.0.get(&TemplateString::new(vec![
-                Fragment::raw("aa"),
-                Fragment::var("name"),
-                Fragment::raw("bb")
-            ])),
+            file.requests[0].headers.0.get("aabb"),
             Some(&TemplateString::new(vec![
                 Fragment::var("value"),
                 Fragment::var("barbar")
