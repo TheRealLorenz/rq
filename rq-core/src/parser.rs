@@ -349,6 +349,23 @@ POST test.dev HTTP/1.0
     }
 
     #[test]
+    fn test_var_in_body() {
+        let input = r#"
+POST test.dev HTTP/1.0
+
+aaa{{var}}bbb"#;
+        let file = assert_parses(input);
+        assert_eq!(
+            file.requests[0].body,
+            TemplateString::new(vec![
+                Fragment::RawText("aaa".into()),
+                Fragment::Var(Variable::new("var")),
+                Fragment::RawText("bbb".into())
+            ])
+        )
+    }
+
+    #[test]
     fn test_multiple_requests() {
         let input = r#"
 POST test.dev HTTP/1.0
