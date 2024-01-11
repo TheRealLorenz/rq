@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Block, Borders},
 };
 use rq_core::{
-    parser::{HttpFile, HttpRequest},
+    parser::{variables::TemplateString, HttpFile, HttpRequest, TemplateRequest},
     request::Response,
 };
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -30,7 +30,7 @@ enum FocusState {
     ResponseBuffer,
 }
 
-impl MenuItem for HttpRequest {
+impl MenuItem for TemplateRequest {
     fn render(&self) -> Vec<ratatui::text::Line<'_>> {
         let mut lines = Vec::new();
 
@@ -126,10 +126,12 @@ pub struct App {
     res_rx: Receiver<(Response, usize)>,
     req_tx: Sender<(HttpRequest, usize)>,
 
-    request_menu: Menu<HttpRequest>,
+    request_menu: Menu<TemplateRequest>,
+    variables: HashMap<String, TemplateString>,
+    file_path: String,
+
     responses: Vec<ResponsePanel>,
     should_exit: bool,
-    file_path: String,
     focus: FocusState,
     message_popup: Option<Popup<MessageDialog>>,
 }
@@ -137,12 +139,9 @@ pub struct App {
 fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(Response, usize)>) {
     tokio::spawn(async move {
         while let Some((req, i)) = req_rx.recv().await {
-            match rq_core::request::execute(&req, &HashMap::new()).await {
+            match rq_core::request::execute(req).await {
                 Ok(data) => res_tx.send((data, i)).await.unwrap(),
-                Err(e) => {
-                    MessageDialog::push_message(Message::Error(e.to_string()));
-                    continue;
-                }
+                Err(e) => MessageDialog::push_message(Message::Error(e.to_string())),
             };
         }
     });
@@ -162,10 +161,13 @@ impl App {
             .collect();
 
         App {
-            file_path,
             res_rx,
             req_tx,
+
             request_menu: Menu::new(http_file.requests),
+            variables: http_file.variables,
+            file_path,
+
             responses,
             should_exit: false,
             focus: FocusState::default(),
@@ -219,12 +221,10 @@ impl App {
                     let index = self.request_menu.idx();
                     self.responses[index].set_loading();
 
-                    self.req_tx
-                        .send((
-                            self.request_menu.selected().clone(),
-                            self.request_menu.idx(),
-                        ))
-                        .await?;
+                    match self.request_menu.selected().fill(&self.variables) {
+                        Ok(request) => self.req_tx.send((request, self.request_menu.idx())).await?,
+                        Err(e) => MessageDialog::push_message(Message::Error(e.to_string())),
+                    };
                 }
             },
             _ => (),
@@ -257,7 +257,7 @@ impl App {
             FocusState::RequestsList => (
                 Style::default().fg(Color::Blue),
                 Style::default(),
-                Menu::<HttpRequest>::KEYMAPS.iter(),
+                Menu::<TemplateRequest>::KEYMAPS.iter(),
             ),
             FocusState::ResponseBuffer => (
                 Style::default(),

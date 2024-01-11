@@ -57,16 +57,16 @@ impl TemplateString {
         }
     }
 
-    pub fn fill(&self, parameters: &HashMap<String, String>) -> Result<String, FillError> {
+    pub fn fill(&self, parameters: &HashMap<String, TemplateString>) -> Result<String, FillError> {
         self.fragments
             .iter()
             .map(|fragment| {
                 let s = match fragment {
                     Fragment::Var(v) => parameters
                         .get(&v.name)
-                        .map(|s| s.as_str())
-                        .ok_or(v.clone())?,
-                    Fragment::RawText(s) => s.as_str(),
+                        .map(|s| s.fill(parameters))
+                        .ok_or(v.clone())??,
+                    Fragment::RawText(s) => s.to_owned(),
                 };
 
                 Ok(s)
@@ -150,7 +150,7 @@ pub struct HashTemplateMap(HashMap<String, TemplateString>);
 impl HashTemplateMap {
     pub fn fill(
         &self,
-        params: &HashMap<String, String>,
+        params: &HashMap<String, TemplateString>,
     ) -> Result<HashMap<String, String>, FillError> {
         let filled = self
             .0

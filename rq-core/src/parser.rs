@@ -2,18 +2,46 @@ use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
 
-use reqwest::{Method, Version};
+use reqwest::{header::HeaderMap, Method, Version};
 use std::collections::HashMap;
 use std::result::Result;
 
-use self::variables::{HashTemplateMap, TemplateString};
+use self::variables::{FillError, HashTemplateMap, TemplateString};
 
 mod values;
-mod variables;
+pub mod variables;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
 struct HttpParser;
+
+#[derive(Debug)]
+pub struct TemplateRequest {
+    pub method: Method,
+    pub url: TemplateString,
+    pub query: HashTemplateMap,
+    pub version: Version,
+    pub headers: HashTemplateMap,
+    pub body: TemplateString,
+}
+
+impl TemplateRequest {
+    pub fn fill(
+        &self,
+        parameters: &HashMap<String, TemplateString>,
+    ) -> Result<HttpRequest, FillError> {
+        let req = HttpRequest {
+            method: self.method.clone(),
+            url: self.url.fill(parameters)?,
+            query: self.query.fill(parameters)?,
+            version: self.version,
+            headers: (&self.headers.fill(parameters)?).try_into().unwrap(),
+            body: self.body.fill(parameters)?,
+        };
+
+        Ok(req)
+    }
+}
 
 fn http_version_from_str(input: &str) -> Version {
     match input {
@@ -29,14 +57,14 @@ fn http_version_from_str(input: &str) -> Version {
 #[derive(Debug, Clone, Default)]
 pub struct HttpRequest {
     pub method: Method,
-    pub url: TemplateString,
-    pub query: HashTemplateMap,
+    pub url: String,
+    pub query: HashMap<String, String>,
     pub version: Version,
-    pub headers: HashTemplateMap,
-    pub body: TemplateString,
+    pub headers: HeaderMap,
+    pub body: String,
 }
 
-impl<'i> From<Pair<'i, Rule>> for HttpRequest {
+impl<'i> From<Pair<'i, Rule>> for TemplateRequest {
     fn from(request: Pair<'i, Rule>) -> Self {
         let mut pairs = request.into_inner().peekable();
 
@@ -77,7 +105,7 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
 
 #[derive(Debug)]
 pub struct HttpFile {
-    pub requests: Vec<HttpRequest>,
+    pub requests: Vec<TemplateRequest>,
     pub variables: HashMap<String, TemplateString>,
 }
 
