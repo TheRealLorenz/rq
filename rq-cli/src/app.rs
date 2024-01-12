@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
 use ratatui::{
     prelude::{Constraint, Direction, Layout},
     style::{Color, Style},
     widgets::{Block, Borders},
 };
 use rq_core::{
-    parser::{variables::TemplateString, HttpFile, HttpRequest, TemplateRequest},
+    parser::{HttpFile, HttpRequest, TemplateRequest},
     request::Response,
 };
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -19,6 +17,7 @@ use crate::components::{
     message_dialog::{Message, MessageDialog},
     popup::Popup,
     response_panel::ResponsePanel,
+    vars_panel::VarsPanel,
     BlockComponent, HandleSuccess,
 };
 
@@ -34,11 +33,12 @@ pub struct App {
     req_tx: Sender<(HttpRequest, usize)>,
 
     request_menu: Menu<TemplateRequest>,
-    variables: HashMap<String, TemplateString>,
+    vars_panel: VarsPanel,
     file_path: String,
 
     responses: Vec<ResponsePanel>,
     should_exit: bool,
+    vars_visible: bool,
     focus: FocusState,
     message_popup: Option<Popup<MessageDialog>>,
 }
@@ -72,11 +72,12 @@ impl App {
             req_tx,
 
             request_menu: Menu::new(http_file.requests),
-            variables: http_file.variables,
+            vars_panel: VarsPanel::new(http_file.variables),
             file_path,
 
             responses,
             should_exit: false,
+            vars_visible: true,
             focus: FocusState::default(),
             message_popup: None,
         }
@@ -128,7 +129,7 @@ impl App {
                     let index = self.request_menu.idx();
                     self.responses[index].set_loading();
 
-                    match self.request_menu.selected().fill(&self.variables) {
+                    match self.request_menu.selected().fill(self.vars_panel.vars()) {
                         Ok(request) => self.req_tx.send((request, self.request_menu.idx())).await?,
                         Err(e) => MessageDialog::push_message(Message::Error(e.to_string())),
                     };
@@ -151,7 +152,7 @@ impl App {
         };
 
         // Create two chunks with equal screen space
-        let [list_chunk, response_chunk] = {
+        let [mut list_chunk, response_chunk] = {
             let x = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -181,6 +182,23 @@ impl App {
         let response_block = Block::default()
             .borders(Borders::ALL)
             .border_style(response_border_style);
+
+        if self.vars_visible {
+            let [new_list_chunk, var_chunk] = {
+                let x = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+                    .split(list_chunk);
+
+                [x[0], x[1]]
+            };
+
+            list_chunk = new_list_chunk;
+
+            let var_block = Block::default().borders(Borders::ALL);
+
+            self.vars_panel.render(f, var_chunk, var_block);
+        }
 
         self.request_menu.render(f, list_chunk, list_block);
         let response_panel = &self.responses[self.request_menu.idx()];
