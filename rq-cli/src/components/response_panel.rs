@@ -13,6 +13,8 @@ use std::{
 };
 use tui_input::Input;
 
+use crate::{app::FocusState, event::Event};
+
 use super::{
     menu::{Menu, MenuItem},
     message_dialog::{Message, MessageDialog},
@@ -21,7 +23,7 @@ use super::{
 };
 
 #[derive(Copy, Clone, Default)]
-enum SaveOption {
+pub enum SaveOption {
     #[default]
     All,
     Body,
@@ -67,7 +69,8 @@ pub struct ResponsePanel {
 }
 
 impl ResponsePanel {
-    pub const KEYMAPS: &'static [(&'static str, &'static str); 4] = &[
+    pub const KEYMAPS: &'static [(&'static str, &'static str); 5] = &[
+        ("Esc", "back to list"),
         ("↓/↑ j/k", "scroll down/up"),
         ("Enter", "send request"),
         ("s", "save"),
@@ -241,6 +244,7 @@ impl BlockComponent for ResponsePanel {
             KeyCode::Char('t') => {
                 self.show_raw = !self.show_raw;
             }
+            KeyCode::Esc => Event::emit(Event::Focus(FocusState::RequestsList)),
             _ => return Ok(HandleSuccess::Ignored),
         };
 

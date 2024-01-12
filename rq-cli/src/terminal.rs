@@ -5,7 +5,7 @@ use crossterm::{
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::time::Duration;
 
-use crate::app::App;
+use crate::{app::App, event::Event};
 
 pub type Frame<'a> = ratatui::Frame<'a, CrosstermBackend<std::io::Stderr>>;
 
@@ -28,7 +28,11 @@ async fn main_loop(app: &mut App) -> anyhow::Result<()> {
         app.update();
 
         if event::poll(Duration::from_millis(250))? {
-            app.on_event(event::read()?).await?;
+            app.on_event(Event::parse(event::read()?)).await?;
+        }
+
+        if let Some(event) = Event::poll() {
+            app.on_event(event).await?;
         }
 
         t.draw(|f| {

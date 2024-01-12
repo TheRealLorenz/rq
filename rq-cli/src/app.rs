@@ -10,22 +10,25 @@ use rq_core::{
 };
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::components::{
-    legend::Legend,
-    menu::{Menu, MenuItem},
-    message_dialog::{Message, MessageDialog},
-    popup::Popup,
-    response_panel::ResponsePanel,
-    BlockComponent, HandleSuccess,
+use crate::{
+    components::{
+        legend::Legend,
+        menu::{Menu, MenuItem},
+        message_dialog::{Message, MessageDialog},
+        popup::Popup,
+        response_panel::ResponsePanel,
+        BlockComponent, HandleSuccess,
+    },
+    event::Event,
 };
 
 #[derive(Default)]
-enum FocusState {
+pub enum FocusState {
     #[default]
     RequestsList,
-    ResponseBuffer,
+    ResponsePanel,
 }
 
 impl MenuItem for HttpRequest {
@@ -147,7 +150,7 @@ fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(R
 }
 
 impl App {
-    const KEYMAPS: &'static [(&'static str, &'static str); 1] = &[("Esc/q", "exit")];
+    const KEYMAPS: &'static [(&'static str, &'static str); 1] = &[("q", "exit")];
 
     pub fn new(file_path: String, http_file: HttpFile) -> Self {
         let (req_tx, req_rx) = channel::<(HttpRequest, usize)>(1);
@@ -185,7 +188,7 @@ impl App {
         // Propagate event to siblings
         let event_result = match self.focus {
             FocusState::RequestsList => self.request_menu.on_event(event),
-            FocusState::ResponseBuffer => self.responses[self.request_menu.idx()].on_event(event),
+            FocusState::ResponsePanel => self.responses[self.request_menu.idx()].on_event(event),
         };
 
         match event_result {
@@ -208,12 +211,9 @@ impl App {
                     self.should_exit = true;
                 }
             }
-            KeyCode::Esc if matches!(self.focus, FocusState::ResponseBuffer) => {
-                self.focus = FocusState::RequestsList;
-            }
             KeyCode::Enter => match self.focus {
-                FocusState::RequestsList => self.focus = FocusState::ResponseBuffer,
-                FocusState::ResponseBuffer => {
+                FocusState::RequestsList => self.focus = FocusState::ResponsePanel,
+                FocusState::ResponsePanel => {
                     let index = self.request_menu.idx();
                     self.responses[index].set_loading();
 
@@ -257,7 +257,7 @@ impl App {
                 Style::default(),
                 Menu::<HttpRequest>::KEYMAPS.iter(),
             ),
-            FocusState::ResponseBuffer => (
+            FocusState::ResponsePanel => (
                 Style::default(),
                 Style::default().fg(Color::Blue),
                 ResponsePanel::KEYMAPS.iter(),
@@ -303,9 +303,13 @@ impl App {
         self.should_exit
     }
 
-    pub async fn on_event(&mut self, e: crossterm::event::Event) -> anyhow::Result<()> {
-        if let Event::Key(e) = e {
-            self.on_key_event(e).await?;
+    pub async fn on_event(&mut self, e: Event) -> anyhow::Result<()> {
+        match e {
+            Event::Focus(e) => self.focus = e,
+            Event::Key(e) => {
+                self.on_key_event(e).await?;
+            }
+            Event::Other(_) => {}
         }
         Ok(())
     }
