@@ -14,6 +14,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{
     components::{
+        input::InputComponent,
         legend::Legend,
         menu::{Menu, MenuItem},
         message_dialog::{Message, MessageDialog},
@@ -133,6 +134,7 @@ pub struct App {
     file_path: String,
     focus: FocusState,
     message_popup: Option<Popup<MessageDialog>>,
+    input_popup: Option<Popup<InputComponent>>,
 }
 
 fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(Response, usize)>) {
@@ -158,19 +160,23 @@ impl App {
 
         handle_requests(req_rx, res_tx);
 
-        let responses = std::iter::repeat(ResponsePanel::default())
+        let responses = std::iter::repeat_with(ResponsePanel::default)
             .take(http_file.requests.len())
             .collect();
+
+        let request_menu = Menu::new(http_file.requests)
+            .with_confirm_callback(|_| Event::emit(Event::Focus(FocusState::ResponsePanel)));
 
         App {
             file_path,
             res_rx,
             req_tx,
-            request_menu: Menu::new(http_file.requests),
+            request_menu,
             responses,
             should_exit: false,
             focus: FocusState::default(),
             message_popup: None,
+            input_popup: None,
         }
     }
 
@@ -179,6 +185,15 @@ impl App {
             match popup.on_event(event)? {
                 HandleSuccess::Consumed => {
                     self.message_popup = None;
+                    return Ok(());
+                }
+                HandleSuccess::Ignored => (),
+            };
+        }
+
+        if let Some(popup) = self.input_popup.as_mut() {
+            match popup.on_event(event)? {
+                HandleSuccess::Consumed => {
                     return Ok(());
                 }
                 HandleSuccess::Ignored => (),
@@ -211,9 +226,8 @@ impl App {
                     self.should_exit = true;
                 }
             }
-            KeyCode::Enter => match self.focus {
-                FocusState::RequestsList => self.focus = FocusState::ResponsePanel,
-                FocusState::ResponsePanel => {
+            KeyCode::Enter => {
+                if let FocusState::ResponsePanel = self.focus {
                     let index = self.request_menu.idx();
                     self.responses[index].set_loading();
 
@@ -224,7 +238,7 @@ impl App {
                         ))
                         .await?;
                 }
-            },
+            }
             _ => (),
         };
 
@@ -285,6 +299,10 @@ impl App {
         if let Some(popup) = self.message_popup.as_ref() {
             popup.render(f, f.size(), Block::default().borders(Borders::ALL));
         }
+
+        if let Some(popup) = self.input_popup.as_ref() {
+            popup.render(f, f.size(), Block::default().borders(Borders::ALL));
+        }
     }
 
     pub fn update(&mut self) {
@@ -303,14 +321,49 @@ impl App {
         self.should_exit
     }
 
-    pub async fn on_event(&mut self, e: Event) -> anyhow::Result<()> {
-        match e {
-            Event::Focus(e) => self.focus = e,
-            Event::Key(e) => {
-                self.on_key_event(e).await?;
+    pub async fn on_event(&mut self, e: Event) {
+        let result = match e {
+            Event::Focus(e) => {
+                self.focus = e;
+                Ok(())
             }
-            Event::Other(_) => {}
+            Event::Key(e) => self.on_key_event(e).await,
+            Event::Other(_) => Ok(()),
+            Event::Save((file_name, option)) => match option {
+                crate::components::response_panel::SaveOption::All => {
+                    self.responses[self.request_menu.idx()].save_all(&file_name)
+                }
+                crate::components::response_panel::SaveOption::Body => {
+                    self.responses[self.request_menu.idx()].save_body(&file_name)
+                }
+            },
+            Event::NewInput((content, typ)) => {
+                match typ {
+                    crate::event::InputType::FileName(save_option) => {
+                        self.input_popup = Some(
+                            InputComponent::from(content.as_str())
+                                .with_cursor(0)
+                                .with_confirm_callback(move |value| {
+                                    Event::emit(Event::InputConfirm);
+                                    Event::emit(Event::Save((value, save_option)));
+                                })
+                                .popup(),
+                        )
+                    }
+                };
+                Ok(())
+            }
+            Event::InputCancel => {
+                self.input_popup = None;
+                Ok(())
+            }
+            Event::InputConfirm => {
+                self.input_popup = None;
+                Ok(())
+            }
+        };
+        if let Err(e) = result {
+            MessageDialog::push_message(Message::Error(e.to_string()));
         }
-        Ok(())
     }
 }

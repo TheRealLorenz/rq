@@ -28,11 +28,11 @@ async fn main_loop(app: &mut App) -> anyhow::Result<()> {
         app.update();
 
         if event::poll(Duration::from_millis(250))? {
-            app.on_event(Event::parse(event::read()?)).await?;
+            app.on_event(Event::parse(event::read()?)).await;
         }
 
         if let Some(event) = Event::poll() {
-            app.on_event(event).await?;
+            app.on_event(event).await;
         }
 
         t.draw(|f| {

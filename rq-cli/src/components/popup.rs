@@ -6,7 +6,6 @@ use std::ops::{Deref, DerefMut};
 
 use super::{legend::Legend, BlockComponent};
 
-#[derive(Clone)]
 pub struct Popup<T: BlockComponent> {
     component: T,
     w_percent: u16,
