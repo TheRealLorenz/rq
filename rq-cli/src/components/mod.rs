@@ -9,6 +9,7 @@ pub mod menu;
 pub mod message_dialog;
 pub mod popup;
 pub mod response_panel;
+pub mod template_request;
 
 pub enum HandleSuccess {
     Consumed,
