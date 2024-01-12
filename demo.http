@@ -3,7 +3,7 @@ Foo: Bar
 
 ###
 
-@endpoint = foo
+@endpoint = httpbin.org
 
 ###
 

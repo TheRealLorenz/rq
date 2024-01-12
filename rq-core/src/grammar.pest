@@ -58,7 +58,7 @@ body_fragment = @{ (!(VAR_BEGIN | DELIM)~ ANY)+ }
 var = ${ VAR_BEGIN ~ var_name ~ VAR_END }
 var_name = @{ (!VAR_END ~ char)+ }
 
-var_def_block = { (var_def ~ NEWLINE*)+ }
+var_def_block = { (NEWLINE* ~ var_def ~ NEWLINE*)+ }
 var_def = ${ "@" ~ var_def_name ~ " "? ~ "=" ~ " "? ~ var_def_value }
 var_def_name = @{ (!"=" ~ char)+ }
 var_def_value = ${ (var | var_def_value_fragment)+ }

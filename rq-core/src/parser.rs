@@ -133,9 +133,7 @@ impl<'i> From<Pair<'i, Rule>> for HttpFile {
 }
 
 pub fn parse(input: &str) -> Result<HttpFile, Box<Error<Rule>>> {
-    let pair = HttpParser::parse(Rule::file, input.trim_start())?
-        .next()
-        .unwrap();
+    let pair = HttpParser::parse(Rule::file, input)?.next().unwrap();
     Ok(HttpFile::from(pair))
 }
 
@@ -415,6 +413,10 @@ POST test.dev
         ?foo=bar
         &baz=42 HTTP/1.0
 authorization: token
+
+###
+
+@test = test
 
 "#;
         let file = assert_parses(input);
