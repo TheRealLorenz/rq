@@ -5,6 +5,7 @@ use crate::terminal::Frame;
 
 use self::popup::Popup;
 
+pub mod http_request;
 pub mod input;
 pub mod legend;
 pub mod menu;
