@@ -2,6 +2,7 @@ use rq_core::parser::parse;
 
 mod app;
 mod components;
+mod event;
 mod terminal;
 
 use app::App;

@@ -1,9 +1,6 @@
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex},
-};
+use std::{collections::VecDeque, sync::Mutex};
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use ratatui::{
     style::{Color, Style},
     widgets::{Paragraph, Wrap},
@@ -11,9 +8,7 @@ use ratatui::{
 
 use super::{BlockComponent, HandleResult, HandleSuccess};
 
-lazy_static! {
-    static ref MESSAGES: Arc<Mutex<VecDeque<Message>>> = Arc::new(Mutex::new(VecDeque::new()));
-}
+static MESSAGES: Lazy<Mutex<VecDeque<Message>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
 
 #[derive(Clone)]
 pub enum Message {
@@ -27,15 +22,12 @@ pub struct MessageDialog {
 }
 
 impl MessageDialog {
-    pub const KEYMAPS: &'static [(&'static str, &'static str); 1] = &[("any", "dismiss")];
-
     pub fn push_message(content: Message) {
-        MESSAGES.as_ref().lock().unwrap().push_back(content);
+        MESSAGES.lock().unwrap().push_back(content);
     }
 
     pub fn pop_message() -> Option<Self> {
         MESSAGES
-            .as_ref()
             .lock()
             .unwrap()
             .pop_front()
@@ -44,6 +36,10 @@ impl MessageDialog {
 }
 
 impl BlockComponent for MessageDialog {
+    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+        [("any", "dismiss")].iter()
+    }
+
     fn on_event(&mut self, _key_event: crossterm::event::KeyEvent) -> HandleResult {
         Ok(HandleSuccess::Consumed)
     }

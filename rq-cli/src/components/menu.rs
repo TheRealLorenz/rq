@@ -13,18 +13,21 @@ pub trait MenuItem {
     }
 }
 
-#[derive(Clone)]
+type ConfirmCallback<T> = Box<dyn Fn(&T)>;
+
 pub struct Menu<T: MenuItem> {
     idx: usize,
     items: Vec<T>,
+    on_confirm_callback: Option<ConfirmCallback<T>>,
 }
 
 impl<T: MenuItem> Menu<T> {
-    pub const KEYMAPS: &'static [(&'static str, &'static str); 2] =
-        &[("↓/↑ j/k", "next/previous"), ("Enter", "select")];
-
     pub fn new(items: Vec<T>) -> Self {
-        Self { idx: 0, items }
+        Self {
+            idx: 0,
+            items,
+            on_confirm_callback: None,
+        }
     }
 
     fn next(&mut self) {
@@ -45,13 +48,36 @@ impl<T: MenuItem> Menu<T> {
     pub fn idx(&self) -> usize {
         self.idx
     }
+
+    pub fn get(&self, idx: usize) -> &T {
+        &self.items[idx]
+    }
+
+    pub fn with_confirm_callback<F>(self, confirm_callback: F) -> Self
+    where
+        F: Fn(&T) + 'static,
+    {
+        Self {
+            on_confirm_callback: Some(Box::new(confirm_callback)),
+            ..self
+        }
+    }
 }
 
 impl<T: MenuItem> BlockComponent for Menu<T> {
+    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+        [("↓/↑ j/k", "next/previous"), ("Enter", "select")].iter()
+    }
+
     fn on_event(&mut self, key_event: crossterm::event::KeyEvent) -> super::HandleResult {
         match key_event.code {
             KeyCode::Char('j') | KeyCode::Down => self.next(),
             KeyCode::Char('k') | KeyCode::Up => self.previous(),
+            KeyCode::Enter => {
+                if let Some(callback) = self.on_confirm_callback.as_ref() {
+                    callback(self.selected());
+                }
+            }
             _ => return Ok(super::HandleSuccess::Ignored),
         }
 

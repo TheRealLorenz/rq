@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use ratatui::{
     prelude::{Constraint, Direction, Layout},
     style::{Color, Style},
@@ -9,23 +10,27 @@ use rq_core::{
 };
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::components::{
-    legend::Legend,
-    menu::Menu,
-    message_dialog::{Message, MessageDialog},
-    popup::Popup,
-    response_panel::ResponsePanel,
-    vars_panel::VarsPanel,
-    BlockComponent, HandleSuccess,
+use crate::{
+    components::{
+        input::InputComponent,
+        legend::Legend,
+        menu::Menu,
+        message_dialog::{Message, MessageDialog},
+        popup::Popup,
+        response_panel::ResponsePanel,
+        vars_panel::VarsPanel,
+        BlockComponent, HandleSuccess,
+    },
+    event::Event,
 };
 
 #[derive(Default)]
-enum FocusState {
+pub enum FocusState {
     #[default]
     RequestsList,
-    ResponseBuffer,
+    ResponsePanel,
 }
 
 pub struct App {
@@ -41,6 +46,7 @@ pub struct App {
     vars_visible: bool,
     focus: FocusState,
     message_popup: Option<Popup<MessageDialog>>,
+    input_popup: Option<Popup<InputComponent>>,
 }
 
 fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(Response, usize)>) {
@@ -55,7 +61,7 @@ fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(R
 }
 
 impl App {
-    const KEYMAPS: &'static [(&'static str, &'static str); 1] = &[("Esc/q", "exit")];
+    const KEYMAPS: &'static [(&'static str, &'static str); 1] = &[("q", "exit")];
 
     pub fn new(file_path: String, http_file: HttpFile) -> Self {
         let (req_tx, req_rx) = channel::<(HttpRequest, usize)>(1);
@@ -63,23 +69,26 @@ impl App {
 
         handle_requests(req_rx, res_tx);
 
-        let responses = std::iter::repeat(ResponsePanel::default())
-            .take(http_file.requests.len())
+        let responses = (0..http_file.requests.len())
+            .map(|idx| ResponsePanel::default().with_idx(idx))
             .collect();
+
+        let request_menu = Menu::new(http_file.requests)
+            .with_confirm_callback(|_| Event::emit(Event::Focus(FocusState::ResponsePanel)));
 
         App {
             res_rx,
             req_tx,
 
-            request_menu: Menu::new(http_file.requests),
-            vars_panel: VarsPanel::new(http_file.variables),
+            request_menu,
             file_path,
-
+            vars_panel: VarsPanel::new(http_file.variables),
             responses,
             should_exit: false,
             vars_visible: true,
             focus: FocusState::default(),
             message_popup: None,
+            input_popup: None,
         }
     }
 
@@ -94,10 +103,19 @@ impl App {
             };
         }
 
+        if let Some(popup) = self.input_popup.as_mut() {
+            match popup.on_event(event)? {
+                HandleSuccess::Consumed => {
+                    return Ok(());
+                }
+                HandleSuccess::Ignored => (),
+            };
+        }
+
         // Propagate event to siblings
         let event_result = match self.focus {
             FocusState::RequestsList => self.request_menu.on_event(event),
-            FocusState::ResponseBuffer => self.responses[self.request_menu.idx()].on_event(event),
+            FocusState::ResponsePanel => self.responses[self.request_menu.idx()].on_event(event),
         };
 
         match event_result {
@@ -120,21 +138,6 @@ impl App {
                     self.should_exit = true;
                 }
             }
-            KeyCode::Esc if matches!(self.focus, FocusState::ResponseBuffer) => {
-                self.focus = FocusState::RequestsList;
-            }
-            KeyCode::Enter => match self.focus {
-                FocusState::RequestsList => self.focus = FocusState::ResponseBuffer,
-                FocusState::ResponseBuffer => {
-                    let index = self.request_menu.idx();
-                    self.responses[index].set_loading();
-
-                    match self.request_menu.selected().fill(self.vars_panel.vars()) {
-                        Ok(request) => self.req_tx.send((request, self.request_menu.idx())).await?,
-                        Err(e) => MessageDialog::push_message(Message::Error(e.to_string())),
-                    };
-                }
-            },
             _ => (),
         };
 
@@ -161,16 +164,20 @@ impl App {
             [x[0], x[1]]
         };
 
-        let (list_border_style, response_border_style, focused_keymaps) = match self.focus {
+        let (list_border_style, response_border_style, legend) = match self.focus {
             FocusState::RequestsList => (
                 Style::default().fg(Color::Blue),
                 Style::default(),
-                Menu::<TemplateRequest>::KEYMAPS.iter(),
+                Legend::new(
+                    Self::KEYMAPS
+                        .iter()
+                        .chain(Menu::<TemplateRequest>::keymaps()),
+                ),
             ),
-            FocusState::ResponseBuffer => (
+            FocusState::ResponsePanel => (
                 Style::default(),
                 Style::default().fg(Color::Blue),
-                ResponsePanel::KEYMAPS.iter(),
+                Legend::new(Self::KEYMAPS.iter().chain(ResponsePanel::keymaps())),
             ),
         };
 
@@ -203,13 +210,13 @@ impl App {
         self.request_menu.render(f, list_chunk, list_block);
         let response_panel = &self.responses[self.request_menu.idx()];
         response_panel.render(f, response_chunk, response_block);
-        Legend::new(Self::KEYMAPS.iter().chain(focused_keymaps)).render(
-            f,
-            legend_chunk,
-            Block::default(),
-        );
+        legend.render(f, legend_chunk, Block::default());
 
         if let Some(popup) = self.message_popup.as_ref() {
+            popup.render(f, f.size(), Block::default().borders(Borders::ALL));
+        }
+
+        if let Some(popup) = self.input_popup.as_ref() {
             popup.render(f, f.size(), Block::default().borders(Borders::ALL));
         }
     }
@@ -221,8 +228,7 @@ impl App {
         }
 
         if self.message_popup.is_none() {
-            self.message_popup = MessageDialog::pop_message()
-                .map(|x| Popup::new(x).with_legend(MessageDialog::KEYMAPS.iter()));
+            self.message_popup = MessageDialog::pop_message().map(BlockComponent::popup);
         }
     }
 
@@ -230,10 +236,62 @@ impl App {
         self.should_exit
     }
 
-    pub async fn on_event(&mut self, e: crossterm::event::Event) -> anyhow::Result<()> {
-        if let Event::Key(e) = e {
-            self.on_key_event(e).await?;
+    pub async fn on_event(&mut self, e: Event) {
+        let result = match e {
+            Event::Focus(e) => {
+                self.focus = e;
+                Ok(())
+            }
+            Event::Key(e) => self.on_key_event(e).await,
+            Event::Other(_) => Ok(()),
+            Event::Save((file_name, option)) => match option {
+                crate::components::response_panel::SaveOption::All => {
+                    self.responses[self.request_menu.idx()].save_all(&file_name)
+                }
+                crate::components::response_panel::SaveOption::Body => {
+                    self.responses[self.request_menu.idx()].save_body(&file_name)
+                }
+            },
+            Event::NewInput((content, typ)) => {
+                match typ {
+                    crate::event::InputType::FileName(save_option) => {
+                        self.input_popup = Some(
+                            InputComponent::from(content.as_str())
+                                .with_cursor(0)
+                                .with_confirm_callback(move |value| {
+                                    Event::emit(Event::InputConfirm);
+                                    Event::emit(Event::Save((value, save_option)));
+                                })
+                                .popup(),
+                        );
+                    }
+                };
+                Ok(())
+            }
+            Event::InputCancel => {
+                self.input_popup = None;
+                Ok(())
+            }
+            Event::InputConfirm => {
+                self.input_popup = None;
+                Ok(())
+            }
+            Event::SendRequest(idx) => {
+                self.responses[idx].set_loading();
+
+                match self.request_menu.get(idx).fill(self.vars_panel.vars()) {
+                    Ok(request) => self
+                        .req_tx
+                        .send((request, idx))
+                        .await
+                        .map_err(|e| anyhow!(e)),
+
+                    Err(e) => Err(anyhow!(e)),
+                }
+            }
+        };
+        if let Err(e) = result {
+            MessageDialog::push_message(Message::Error(e.to_string()));
         }
-        Ok(())
     }
 }

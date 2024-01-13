@@ -4,48 +4,26 @@ use ratatui::{
     prelude::{Constraint, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarState, Wrap},
+    widgets::{Paragraph, Scrollbar, ScrollbarState, Wrap},
 };
 use rq_core::request::{mime::Payload, Response, StatusCode};
-use std::{
-    fmt::{Display, Write},
-    iter,
+use std::{fmt::Write, iter};
+
+use crate::{
+    app::FocusState,
+    event::{Event, InputType},
 };
-use tui_input::Input;
 
 use super::{
-    menu::{Menu, MenuItem},
     message_dialog::{Message, MessageDialog},
-    popup::Popup,
     BlockComponent, HandleResult, HandleSuccess,
 };
 
 #[derive(Copy, Clone, Default)]
-enum SaveOption {
+pub enum SaveOption {
     #[default]
     All,
     Body,
-}
-
-impl SaveOption {
-    fn iterator() -> impl Iterator<Item = SaveOption> {
-        [SaveOption::All, SaveOption::Body].iter().copied()
-    }
-}
-
-impl Display for SaveOption {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SaveOption::All => write!(f, "Save entire response"),
-            SaveOption::Body => write!(f, "Save response body"),
-        }
-    }
-}
-
-impl MenuItem for SaveOption {
-    fn render(&self) -> Vec<Line<'_>> {
-        vec![Line::from(self.to_string())]
-    }
 }
 
 #[derive(Clone, Default)]
@@ -56,23 +34,18 @@ enum State {
     Received(Response),
 }
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct ResponsePanel {
     state: State,
     scroll: u16,
-    input_popup: Option<Popup<Input>>,
-    save_option: SaveOption,
-    save_menu: Option<Popup<Menu<SaveOption>>>,
     show_raw: bool,
+    idx: usize,
 }
 
 impl ResponsePanel {
-    pub const KEYMAPS: &'static [(&'static str, &'static str); 4] = &[
-        ("↓/↑ j/k", "scroll down/up"),
-        ("Enter", "send request"),
-        ("s", "save"),
-        ("t", "toggle raw bytes"),
-    ];
+    pub fn with_idx(self, idx: usize) -> Self {
+        Self { idx, ..self }
+    }
 
     pub fn set_loading(&mut self) {
         self.state = State::Loading;
@@ -150,97 +123,76 @@ impl ResponsePanel {
 
         lines
     }
+
+    fn extension(&self) -> Option<String> {
+        self.body()
+            .ok()
+            .and_then(|payload| match payload {
+                Payload::Bytes(b) => b.extension,
+                Payload::Text(t) => t.extension,
+            })
+            .map(|s| ".".to_string() + s.as_str())
+    }
+
+    pub fn save_body(&self, file_name: &str) -> anyhow::Result<()> {
+        let to_save = match self.body()? {
+            Payload::Bytes(b) => b.bytes,
+            Payload::Text(t) => t.text.into(),
+        };
+
+        std::fs::write(file_name, to_save)?;
+
+        MessageDialog::push_message(Message::Info(format!("Saved to {file_name}")));
+
+        Ok(())
+    }
+
+    pub fn save_all(&self, file_name: &str) -> anyhow::Result<()> {
+        let to_save = self.to_string()?;
+
+        std::fs::write(file_name, to_save)?;
+
+        MessageDialog::push_message(Message::Info(format!("Saved to {file_name}")));
+
+        Ok(())
+    }
 }
 
 impl BlockComponent for ResponsePanel {
+    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+        [
+            ("Esc", "back to list"),
+            ("↓/↑ j/k", "scroll down/up"),
+            ("Enter", "send request"),
+            ("s", "save body"),
+            ("S", "save all"),
+            ("t", "toggle raw bytes"),
+        ]
+        .iter()
+    }
+
     fn on_event(&mut self, key_event: crossterm::event::KeyEvent) -> HandleResult {
-        if let Some(input_popup) = self.input_popup.as_mut() {
-            match input_popup.on_event(key_event)? {
-                HandleSuccess::Consumed => return Ok(HandleSuccess::Consumed),
-                HandleSuccess::Ignored => (),
-            }
-
-            match key_event.code {
-                KeyCode::Enter => {
-                    let file_path = input_popup.value().to_string();
-
-                    let to_save = match self.save_option {
-                        SaveOption::All => self.to_string()?.into(),
-                        SaveOption::Body => match self.body()? {
-                            Payload::Bytes(b) => b.bytes,
-                            Payload::Text(t) => t.text.into(),
-                        },
-                    };
-
-                    std::fs::write(&file_path, to_save)?;
-                    self.input_popup = None;
-
-                    MessageDialog::push_message(Message::Info(format!("Saved to {file_path}")));
-
-                    return Ok(HandleSuccess::Consumed);
-                }
-                KeyCode::Esc => {
-                    self.input_popup = None;
-
-                    return Ok(HandleSuccess::Consumed);
-                }
-                _ => (),
-            }
-        }
-
-        if self.save_menu.is_some() {
-            let extension = self
-                .body()
-                .ok()
-                .map(|payload| match payload {
-                    Payload::Bytes(b) => b.extension.unwrap_or_default(),
-                    Payload::Text(t) => t.extension.unwrap_or_default(),
-                })
-                .map(|s| ".".to_string() + s.as_str())
-                .unwrap_or_default();
-
-            if let Some(menu) = self.save_menu.as_mut() {
-                match menu.on_event(key_event)? {
-                    HandleSuccess::Consumed => return Ok(HandleSuccess::Consumed),
-                    HandleSuccess::Ignored => (),
-                }
-
-                match key_event.code {
-                    KeyCode::Enter => {
-                        self.save_option = *menu.selected();
-                        self.save_menu = None;
-                        self.input_popup = Some(
-                            Popup::new(Input::from(extension).with_cursor(0)).with_legend(
-                                iter::once(&("Esc", "close"))
-                                    .chain(Menu::<SaveOption>::KEYMAPS.iter()),
-                            ),
-                        );
-
-                        return Ok(HandleSuccess::Consumed);
-                    }
-                    KeyCode::Esc => {
-                        self.save_menu = None;
-
-                        return Ok(HandleSuccess::Consumed);
-                    }
-                    _ => (),
-                }
-            }
-        }
-
         match key_event.code {
             KeyCode::Down | KeyCode::Char('j') => self.scroll_down(),
             KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
             KeyCode::Char('s') => {
-                self.save_menu = Some(
-                    Popup::new(Menu::new(SaveOption::iterator().collect())).with_legend(
-                        iter::once(&("Esc", "close")).chain(Menu::<SaveOption>::KEYMAPS.iter()),
-                    ),
-                );
+                Event::emit(Event::NewInput((
+                    self.extension().unwrap_or_default(),
+                    InputType::FileName(SaveOption::Body),
+                )));
+            }
+
+            KeyCode::Char('S') => {
+                Event::emit(Event::NewInput((
+                    self.extension().unwrap_or_default(),
+                    InputType::FileName(SaveOption::All),
+                )));
             }
             KeyCode::Char('t') => {
                 self.show_raw = !self.show_raw;
             }
+            KeyCode::Enter => Event::emit(Event::SendRequest(self.idx)),
+            KeyCode::Esc => Event::emit(Event::Focus(FocusState::RequestsList)),
             _ => return Ok(HandleSuccess::Ignored),
         };
 
@@ -327,24 +279,6 @@ impl BlockComponent for ResponsePanel {
                 .viewport_content_length(block.inner(area).height),
         );
         frame.render_widget(block, area);
-
-        if let Some(input_popup) = self.input_popup.as_ref() {
-            input_popup.render(
-                frame,
-                frame.size(),
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" output path "),
-            );
-        }
-
-        if let Some(menu) = self.save_menu.as_ref() {
-            menu.render(
-                frame,
-                frame.size(),
-                Block::default().borders(Borders::ALL).title(" save menu "),
-            );
-        }
     }
 }
 
