@@ -3,6 +3,7 @@ use ratatui::{prelude::Rect, widgets::Block};
 
 use crate::terminal::Frame;
 
+pub mod http_request;
 pub mod input;
 pub mod legend;
 pub mod menu;
