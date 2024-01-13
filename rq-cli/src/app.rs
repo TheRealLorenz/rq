@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use ratatui::{
     prelude::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
@@ -160,8 +161,8 @@ impl App {
 
         handle_requests(req_rx, res_tx);
 
-        let responses = std::iter::repeat_with(ResponsePanel::default)
-            .take(http_file.requests.len())
+        let responses = (0..http_file.requests.len())
+            .map(|idx| ResponsePanel::default().with_idx(idx))
             .collect();
 
         let request_menu = Menu::new(http_file.requests)
@@ -224,19 +225,6 @@ impl App {
             KeyCode::Char('c') => {
                 if event.modifiers == KeyModifiers::CONTROL {
                     self.should_exit = true;
-                }
-            }
-            KeyCode::Enter => {
-                if let FocusState::ResponsePanel = self.focus {
-                    let index = self.request_menu.idx();
-                    self.responses[index].set_loading();
-
-                    self.req_tx
-                        .send((
-                            self.request_menu.selected().clone(),
-                            self.request_menu.idx(),
-                        ))
-                        .await?;
                 }
             }
             _ => (),
@@ -348,7 +336,7 @@ impl App {
                                     Event::emit(Event::Save((value, save_option)));
                                 })
                                 .popup(),
-                        )
+                        );
                     }
                 };
                 Ok(())
@@ -360,6 +348,14 @@ impl App {
             Event::InputConfirm => {
                 self.input_popup = None;
                 Ok(())
+            }
+            Event::SendRequest(idx) => {
+                self.responses[idx].set_loading();
+
+                self.req_tx
+                    .send((self.request_menu.get(idx).clone(), idx))
+                    .await
+                    .map_err(|e| anyhow!(e))
             }
         };
         if let Err(e) = result {

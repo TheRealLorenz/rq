@@ -39,6 +39,7 @@ pub struct ResponsePanel {
     state: State,
     scroll: u16,
     show_raw: bool,
+    idx: usize,
 }
 
 impl ResponsePanel {
@@ -50,6 +51,10 @@ impl ResponsePanel {
         ("S", "save all"),
         ("t", "toggle raw bytes"),
     ];
+
+    pub fn with_idx(self, idx: usize) -> Self {
+        Self { idx, ..self }
+    }
 
     pub fn set_loading(&mut self) {
         self.state = State::Loading;
@@ -183,6 +188,7 @@ impl BlockComponent for ResponsePanel {
             KeyCode::Char('t') => {
                 self.show_raw = !self.show_raw;
             }
+            KeyCode::Enter => Event::emit(Event::SendRequest(self.idx)),
             KeyCode::Esc => Event::emit(Event::Focus(FocusState::RequestsList)),
             _ => return Ok(HandleSuccess::Ignored),
         };

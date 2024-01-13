@@ -52,6 +52,10 @@ impl<T: MenuItem> Menu<T> {
         self.idx
     }
 
+    pub fn get(&self, idx: usize) -> &T {
+        &self.items[idx]
+    }
+
     pub fn with_confirm_callback<F>(self, confirm_callback: F) -> Self
     where
         F: Fn(&T) + 'static,

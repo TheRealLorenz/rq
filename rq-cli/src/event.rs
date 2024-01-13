@@ -12,6 +12,7 @@ pub enum Event {
     NewInput((String, InputType)),
     InputConfirm,
     InputCancel,
+    SendRequest(usize),
     Key(crossterm::event::KeyEvent),
     Other(crossterm::event::Event),
 }
