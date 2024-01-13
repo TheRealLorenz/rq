@@ -26,9 +26,6 @@ impl Default for InputComponent {
 }
 
 impl InputComponent {
-    pub const KEYMAPS: &'static [(&'static str, &'static str); 2] =
-        &[("Enter", "confirm"), ("Esc", "cancel")];
-
     pub fn from(value: &str) -> Self {
         Self {
             input: Input::from(value),
@@ -65,6 +62,10 @@ impl InputComponent {
 }
 
 impl BlockComponent for InputComponent {
+    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+        [("Enter", "confirm"), ("Esc", "cancel")].iter()
+    }
+
     fn on_event(&mut self, key_event: crossterm::event::KeyEvent) -> super::HandleResult {
         if self
             .input

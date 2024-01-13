@@ -39,4 +39,7 @@ pub trait BlockComponent {
     {
         Popup::new(self)
     }
+    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+        std::iter::empty()
+    }
 }

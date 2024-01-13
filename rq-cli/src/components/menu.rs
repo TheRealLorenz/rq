@@ -22,9 +22,6 @@ pub struct Menu<T: MenuItem> {
 }
 
 impl<T: MenuItem> Menu<T> {
-    pub const KEYMAPS: &'static [(&'static str, &'static str); 2] =
-        &[("↓/↑ j/k", "next/previous"), ("Enter", "select")];
-
     pub fn new(items: Vec<T>) -> Self {
         Self {
             idx: 0,
@@ -68,6 +65,10 @@ impl<T: MenuItem> Menu<T> {
 }
 
 impl<T: MenuItem> BlockComponent for Menu<T> {
+    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+        [("↓/↑ j/k", "next/previous"), ("Enter", "select")].iter()
+    }
+
     fn on_event(&mut self, key_event: crossterm::event::KeyEvent) -> super::HandleResult {
         match key_event.code {
             KeyCode::Char('j') | KeyCode::Down => self.next(),

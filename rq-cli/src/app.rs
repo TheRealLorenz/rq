@@ -253,16 +253,16 @@ impl App {
             [x[0], x[1]]
         };
 
-        let (list_border_style, response_border_style, focused_keymaps) = match self.focus {
+        let (list_border_style, response_border_style, legend) = match self.focus {
             FocusState::RequestsList => (
                 Style::default().fg(Color::Blue),
                 Style::default(),
-                Menu::<HttpRequest>::KEYMAPS.iter(),
+                Legend::new(Self::KEYMAPS.iter().chain(Menu::<HttpRequest>::keymaps())),
             ),
             FocusState::ResponsePanel => (
                 Style::default(),
                 Style::default().fg(Color::Blue),
-                ResponsePanel::KEYMAPS.iter(),
+                Legend::new(Self::KEYMAPS.iter().chain(ResponsePanel::keymaps())),
             ),
         };
 
@@ -278,11 +278,7 @@ impl App {
         self.request_menu.render(f, list_chunk, list_block);
         let response_panel = &self.responses[self.request_menu.idx()];
         response_panel.render(f, response_chunk, response_block);
-        Legend::new(Self::KEYMAPS.iter().chain(focused_keymaps)).render(
-            f,
-            legend_chunk,
-            Block::default(),
-        );
+        legend.render(f, legend_chunk, Block::default());
 
         if let Some(popup) = self.message_popup.as_ref() {
             popup.render(f, f.size(), Block::default().borders(Borders::ALL));
@@ -300,8 +296,7 @@ impl App {
         }
 
         if self.message_popup.is_none() {
-            self.message_popup = MessageDialog::pop_message()
-                .map(|x| Popup::new(x).with_legend(MessageDialog::KEYMAPS.iter()));
+            self.message_popup = MessageDialog::pop_message().map(BlockComponent::popup);
         }
     }
 

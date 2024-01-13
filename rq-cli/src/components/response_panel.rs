@@ -43,15 +43,6 @@ pub struct ResponsePanel {
 }
 
 impl ResponsePanel {
-    pub const KEYMAPS: &'static [(&'static str, &'static str); 6] = &[
-        ("Esc", "back to list"),
-        ("↓/↑ j/k", "scroll down/up"),
-        ("Enter", "send request"),
-        ("s", "save body"),
-        ("S", "save all"),
-        ("t", "toggle raw bytes"),
-    ];
-
     pub fn with_idx(self, idx: usize) -> Self {
         Self { idx, ..self }
     }
@@ -168,6 +159,18 @@ impl ResponsePanel {
 }
 
 impl BlockComponent for ResponsePanel {
+    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+        [
+            ("Esc", "back to list"),
+            ("↓/↑ j/k", "scroll down/up"),
+            ("Enter", "send request"),
+            ("s", "save body"),
+            ("S", "save all"),
+            ("t", "toggle raw bytes"),
+        ]
+        .iter()
+    }
+
     fn on_event(&mut self, key_event: crossterm::event::KeyEvent) -> HandleResult {
         match key_event.code {
             KeyCode::Down | KeyCode::Char('j') => self.scroll_down(),

@@ -22,8 +22,6 @@ pub struct MessageDialog {
 }
 
 impl MessageDialog {
-    pub const KEYMAPS: &'static [(&'static str, &'static str); 1] = &[("any", "dismiss")];
-
     pub fn push_message(content: Message) {
         MESSAGES.lock().unwrap().push_back(content);
     }
@@ -38,6 +36,10 @@ impl MessageDialog {
 }
 
 impl BlockComponent for MessageDialog {
+    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+        [("any", "dismiss")].iter()
+    }
+
     fn on_event(&mut self, _key_event: crossterm::event::KeyEvent) -> HandleResult {
         Ok(HandleSuccess::Consumed)
     }
