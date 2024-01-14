@@ -2,15 +2,19 @@ use std::collections::HashMap;
 
 use rq_core::parser::variables::TemplateString;
 
-use super::BlockComponent;
+use crate::components::{menu::Menu, BlockComponent};
 
 pub struct VarsPanel {
     vars: HashMap<String, TemplateString>,
+    menu: Menu<(String, TemplateString)>,
 }
 
 impl VarsPanel {
     pub fn new(vars: HashMap<String, TemplateString>) -> Self {
-        Self { vars }
+        Self {
+            menu: Menu::new(vars.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+            vars,
+        }
     }
 
     pub fn vars(&self) -> &HashMap<String, TemplateString> {
@@ -25,6 +29,6 @@ impl BlockComponent for VarsPanel {
         area: ratatui::prelude::Rect,
         block: ratatui::widgets::Block,
     ) {
-        frame.render_widget(block, area);
+        self.menu.render(frame, area, block.title(" Variables "));
     }
 }

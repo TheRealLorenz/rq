@@ -20,7 +20,7 @@ use crate::{
         message_dialog::{Message, MessageDialog},
         popup::Popup,
         response_panel::ResponsePanel,
-        vars_panel::VarsPanel,
+        variables::panel::VarsPanel,
         BlockComponent, HandleSuccess,
     },
     event::Event,

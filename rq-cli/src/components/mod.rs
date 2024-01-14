@@ -12,7 +12,7 @@ pub mod message_dialog;
 pub mod popup;
 pub mod response_panel;
 pub mod template_request;
-pub mod vars_panel;
+pub mod variables;
 
 pub enum HandleSuccess {
     Consumed,
