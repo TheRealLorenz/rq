@@ -64,8 +64,8 @@ impl TemplateString {
                 let s = match fragment {
                     Fragment::Var(v) => parameters
                         .get(&v.name)
-                        .map(|s| s.fill(parameters))
-                        .ok_or(v.clone())??,
+                        .ok_or(FillError::from(v.clone()))
+                        .and_then(|s| s.fill(parameters))?,
                     Fragment::RawText(s) => s.to_owned(),
                 };
 
