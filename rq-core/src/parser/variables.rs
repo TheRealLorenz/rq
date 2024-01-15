@@ -126,6 +126,10 @@ impl Display for TemplateString {
             })
             .collect::<String>();
 
+        if s.starts_with(' ') | s.ends_with(' ') {
+            return write!(f, "\"{s}\"");
+        }
+
         write!(f, "{s}")
     }
 }
