@@ -1,8 +1,12 @@
 use std::collections::HashMap;
 
+use crossterm::event::KeyCode;
 use rq_core::parser::variables::TemplateString;
 
-use crate::components::{menu::Menu, BlockComponent};
+use crate::{
+    components::{menu::Menu, BlockComponent, HandleSuccess},
+    event::Event,
+};
 
 pub struct VarsPanel {
     vars: HashMap<String, TemplateString>,
@@ -30,5 +34,21 @@ impl BlockComponent for VarsPanel {
         block: ratatui::widgets::Block,
     ) {
         self.menu.render(frame, area, block.title(" Variables "));
+    }
+
+    fn on_event(
+        &mut self,
+        key_event: crossterm::event::KeyEvent,
+    ) -> crate::components::HandleResult {
+        match self.menu.on_event(key_event)? {
+            HandleSuccess::Consumed => return Ok(HandleSuccess::Consumed),
+            HandleSuccess::Ignored => (),
+        }
+
+        if matches!(key_event.code, KeyCode::Esc) {
+            Event::emit(Event::Focus(crate::app::FocusState::RequestsList));
+        }
+
+        Ok(HandleSuccess::Ignored)
     }
 }

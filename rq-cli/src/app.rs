@@ -31,6 +31,7 @@ pub enum FocusState {
     #[default]
     RequestsList,
     ResponsePanel,
+    VarsPanel,
 }
 
 pub struct App {
@@ -61,7 +62,8 @@ fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(R
 }
 
 impl App {
-    const KEYMAPS: &'static [(&'static str, &'static str); 1] = &[("q", "exit")];
+    const KEYMAPS: &'static [(&'static str, &'static str); 2] =
+        &[("q", "exit"), ("v", "variables")];
 
     pub fn new(file_path: String, http_file: HttpFile) -> Self {
         let (req_tx, req_rx) = channel::<(HttpRequest, usize)>(1);
@@ -116,6 +118,7 @@ impl App {
         let event_result = match self.focus {
             FocusState::RequestsList => self.request_menu.on_event(event),
             FocusState::ResponsePanel => self.responses[self.request_menu.idx()].on_event(event),
+            FocusState::VarsPanel => self.vars_panel.on_event(event),
         };
 
         match event_result {
@@ -138,6 +141,7 @@ impl App {
                     self.should_exit = true;
                 }
             }
+            KeyCode::Char('v') => Event::emit(Event::Focus(FocusState::VarsPanel)),
             _ => (),
         };
 
@@ -164,21 +168,30 @@ impl App {
             [x[0], x[1]]
         };
 
-        let (list_border_style, response_border_style, legend) = match self.focus {
-            FocusState::RequestsList => (
-                Style::default().fg(Color::Blue),
-                Style::default(),
+        let mut list_border_style = Style::default();
+        let mut response_border_style = Style::default();
+        let mut vars_panel_border_style = Style::default();
+
+        let legend = match self.focus {
+            FocusState::RequestsList => {
+                list_border_style = list_border_style.fg(Color::Blue);
+
                 Legend::new(
                     Self::KEYMAPS
                         .iter()
                         .chain(Menu::<TemplateRequest>::keymaps()),
-                ),
-            ),
-            FocusState::ResponsePanel => (
-                Style::default(),
-                Style::default().fg(Color::Blue),
-                Legend::new(Self::KEYMAPS.iter().chain(ResponsePanel::keymaps())),
-            ),
+                )
+            }
+            FocusState::ResponsePanel => {
+                response_border_style = response_border_style.fg(Color::Blue);
+
+                Legend::new(Self::KEYMAPS.iter().chain(ResponsePanel::keymaps()))
+            }
+            FocusState::VarsPanel => {
+                vars_panel_border_style = vars_panel_border_style.fg(Color::Blue);
+
+                Legend::new(Self::KEYMAPS.iter().chain(VarsPanel::keymaps()))
+            }
         };
 
         let list_block = Block::default()
@@ -202,7 +215,9 @@ impl App {
 
             list_chunk = new_list_chunk;
 
-            let var_block = Block::default().borders(Borders::ALL);
+            let var_block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(vars_panel_border_style);
 
             self.vars_panel.render(f, var_chunk, var_block);
         }
