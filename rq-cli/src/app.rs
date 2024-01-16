@@ -84,6 +84,13 @@ impl App {
     }
 
     async fn on_key_event(&mut self, event: KeyEvent) -> anyhow::Result<()> {
+        if let KeyCode::Char('c') = event.code {
+            if event.modifiers == KeyModifiers::CONTROL {
+                self.should_exit = true;
+                return Ok(());
+            }
+        }
+
         if let Some(popup) = self.popups.front_mut() {
             match popup.on_event(event)? {
                 HandleSuccess::Consumed => {
@@ -107,16 +114,8 @@ impl App {
             Err(e) => return Err(e),
         };
 
-        match event.code {
-            KeyCode::Char('q' | 'Q') => {
-                self.should_exit = true;
-            }
-            KeyCode::Char('c') => {
-                if event.modifiers == KeyModifiers::CONTROL {
-                    self.should_exit = true;
-                }
-            }
-            _ => (),
+        if let KeyCode::Char('q' | 'Q') = event.code {
+            self.should_exit = true;
         };
 
         Ok(())
