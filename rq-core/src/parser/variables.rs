@@ -113,7 +113,7 @@ impl FromStr for TemplateString {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 #[error("missing field '{}'", .missing_variable.name)]
 pub struct FillError {
     missing_variable: Variable,
@@ -204,5 +204,70 @@ impl From<Pair<'_, Rule>> for HashTemplateMap {
             .collect();
 
         Self(headers)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    mod variable {}
+
+    mod template_string {
+        use std::collections::HashMap;
+
+        use crate::parser::variables::{FillError, Fragment, TemplateString, Variable};
+
+        #[test]
+        fn test_display() {
+            let ts = TemplateString::new(vec![Fragment::var("foo")]);
+            let ts2 = TemplateString::raw("barbar");
+            let ts_quoted = TemplateString::raw("  baz  ");
+
+            assert_eq!(ts.to_string(), "{{foo}}");
+            assert_eq!(ts2.to_string(), "barbar");
+            assert_eq!(ts_quoted.to_string(), "\"  baz  \"");
+        }
+
+        #[test]
+        fn test_parse_str() {
+            let s = "' foo'{{bar}}baz";
+            let expected = TemplateString::new(vec![
+                Fragment::raw(" foo"),
+                Fragment::var("bar"),
+                Fragment::raw("baz"),
+            ]);
+
+            assert_eq!(s.parse::<TemplateString>().unwrap(), expected);
+        }
+
+        #[test]
+        fn test_fill() {
+            let ts = TemplateString::new(vec![
+                Fragment::raw(" foo"),
+                Fragment::var("bar"),
+                Fragment::raw("baz"),
+            ]);
+            let ts2 = TemplateString::raw("foobarbaz");
+            let ts3 = TemplateString::new(vec![Fragment::var("baz")]);
+            let values =
+                HashMap::from([("bar".into(), "FOOBAR".parse::<TemplateString>().unwrap())]);
+
+            assert_eq!(ts.fill(&values).unwrap(), " fooFOOBARbaz");
+            assert_eq!(ts2.fill(&values).unwrap(), "foobarbaz");
+            assert_eq!(
+                ts3.fill(&values),
+                Err(FillError::from(Variable::new("baz")))
+            )
+        }
+
+        #[test]
+        fn test_is_empty() {
+            let ts = TemplateString::new(vec![]);
+            let ts2 = TemplateString::raw("");
+            let ts3 = TemplateString::new(vec![Fragment::raw(""), Fragment::raw("")]);
+
+            assert!(ts.is_empty());
+            assert!(ts2.is_empty());
+            assert!(ts3.is_empty());
+        }
     }
 }
