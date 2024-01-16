@@ -159,7 +159,7 @@ impl ResponsePanel {
 }
 
 impl BlockComponent for ResponsePanel {
-    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+    fn keymaps() -> &'static [(&'static str, &'static str)] {
         [
             ("Esc", "back to list"),
             ("↓/↑ j/k", "scroll down/up"),
@@ -168,7 +168,7 @@ impl BlockComponent for ResponsePanel {
             ("S", "save all"),
             ("t", "toggle raw bytes"),
         ]
-        .iter()
+        .as_slice()
     }
 
     fn on_event(&mut self, key_event: crossterm::event::KeyEvent) -> HandleResult {

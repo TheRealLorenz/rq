@@ -36,8 +36,8 @@ impl MessageDialog {
 }
 
 impl BlockComponent for MessageDialog {
-    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-        [("any", "dismiss")].iter()
+    fn keymaps() -> &'static [(&'static str, &'static str)] {
+        [("any", "dismiss")].as_slice()
     }
 
     fn on_event(&mut self, _key_event: crossterm::event::KeyEvent) -> HandleResult {

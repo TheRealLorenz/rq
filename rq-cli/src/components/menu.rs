@@ -65,8 +65,8 @@ impl<T: MenuItem> Menu<T> {
 }
 
 impl<T: MenuItem> BlockComponent for Menu<T> {
-    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-        [("↓/↑ j/k", "next/previous"), ("Enter", "select")].iter()
+    fn keymaps() -> &'static [(&'static str, &'static str)] {
+        [("↓/↑ j/k", "next/previous"), ("Enter", "select")].as_slice()
     }
 
     fn on_event(&mut self, key_event: crossterm::event::KeyEvent) -> super::HandleResult {

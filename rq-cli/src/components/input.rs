@@ -62,8 +62,8 @@ impl InputComponent {
 }
 
 impl BlockComponent for InputComponent {
-    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-        [("Enter", "confirm"), ("Esc", "cancel")].iter()
+    fn keymaps() -> &'static [(&'static str, &'static str)] {
+        [("Enter", "confirm"), ("Esc", "cancel")].as_slice()
     }
 
     fn on_event(&mut self, key_event: crossterm::event::KeyEvent) -> super::HandleResult {

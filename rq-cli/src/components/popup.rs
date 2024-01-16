@@ -80,6 +80,6 @@ impl<T: BlockComponent> BlockComponent for Popup<T> {
         };
 
         self.component.render(frame, popup_area, block);
-        Legend::new(T::keymaps()).render(frame, legend_area, Block::default());
+        Legend::new(T::keymaps().iter()).render(frame, legend_area, Block::default());
     }
 }
