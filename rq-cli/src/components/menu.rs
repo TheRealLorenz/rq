@@ -53,6 +53,19 @@ impl<T: MenuItem> Menu<T> {
         &self.items[idx]
     }
 
+    pub fn update<P>(&mut self, predicate: P, value: T)
+    where
+        P: Fn(&T) -> bool,
+    {
+        if let Some(idx) = self.items.iter().position(predicate) {
+            self.items[idx] = value;
+        }
+    }
+
+    pub fn add(&mut self, value: T) {
+        self.items.push(value);
+    }
+
     pub fn with_confirm_callback<F>(self, confirm_callback: F) -> Self
     where
         F: Fn(&T) + 'static,

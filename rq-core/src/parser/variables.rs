@@ -1,9 +1,9 @@
-use std::{collections::HashMap, fmt::Display, hash::Hash, ops::Deref};
+use std::{collections::HashMap, fmt::Display, hash::Hash, ops::Deref, str::FromStr};
 
-use pest::iterators::Pair;
+use pest::{iterators::Pair, Parser};
 use thiserror::Error;
 
-use super::{values, Rule};
+use super::{values, HttpParser, Rule};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Variable {
@@ -98,6 +98,18 @@ impl From<Pair<'_, Rule>> for TemplateString {
             .collect::<Vec<_>>();
 
         Self::new(fragments)
+    }
+}
+
+impl FromStr for TemplateString {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(HttpParser::parse(Rule::var_def_value, s)
+            .map_err(|e| e.to_string())?
+            .next()
+            .unwrap()
+            .into())
     }
 }
 

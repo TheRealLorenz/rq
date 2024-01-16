@@ -5,7 +5,7 @@ use rq_core::parser::variables::TemplateString;
 
 use crate::{
     components::{menu::Menu, BlockComponent, HandleSuccess},
-    event::Event,
+    event::{Event, InputType},
 };
 
 pub struct VarsPanel {
@@ -15,14 +15,29 @@ pub struct VarsPanel {
 
 impl VarsPanel {
     pub fn new(vars: HashMap<String, TemplateString>) -> Self {
-        Self {
-            menu: Menu::new(vars.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
-            vars,
-        }
+        let menu = Menu::new(vars.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+            .with_confirm_callback(|(name, value)| {
+                Event::emit(Event::NewInput((
+                    value.to_string(),
+                    InputType::VarValue(name.clone()),
+                )));
+            });
+
+        Self { vars, menu }
     }
 
     pub fn vars(&self) -> &HashMap<String, TemplateString> {
         &self.vars
+    }
+
+    pub fn update(&mut self, name: String, value: TemplateString) {
+        match self.vars.insert(name.clone(), value.clone()) {
+            Some(_) => {
+                let cloned = name.clone();
+                self.menu.update(move |(n, _)| n == &cloned, (name, value));
+            }
+            None => self.menu.add((name, value)),
+        };
     }
 }
 
@@ -50,5 +65,9 @@ impl BlockComponent for VarsPanel {
         }
 
         Ok(HandleSuccess::Ignored)
+    }
+
+    fn keymaps() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+        std::iter::once(&("Esc", "back to list")).chain(Menu::<(String, TemplateString)>::keymaps())
     }
 }

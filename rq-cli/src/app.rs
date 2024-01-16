@@ -280,6 +280,16 @@ impl App {
                                 .popup(),
                         );
                     }
+                    crate::event::InputType::VarValue(name) => {
+                        self.input_popup = Some(
+                            InputComponent::from(content.as_str())
+                                .with_confirm_callback(move |value| {
+                                    Event::emit(Event::InputConfirm);
+                                    Event::emit(Event::UpdateVar((name.clone(), value)));
+                                })
+                                .popup(),
+                        );
+                    }
                 };
                 Ok(())
             }
@@ -304,6 +314,13 @@ impl App {
                     Err(e) => Err(anyhow!(e)),
                 }
             }
+            Event::UpdateVar((name, value)) => match value.parse() {
+                Ok(value) => {
+                    self.vars_panel.update(name, value);
+                    Ok(())
+                }
+                Err(e) => Err(anyhow!(e)),
+            },
         };
         if let Err(e) = result {
             MessageDialog::push_message(Message::Error(e.to_string()));
