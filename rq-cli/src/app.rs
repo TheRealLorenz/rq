@@ -267,30 +267,8 @@ impl App {
                     self.responses[self.request_menu.idx()].save_body(&file_name)
                 }
             },
-            Event::NewInput((content, typ)) => {
-                match typ {
-                    crate::event::InputType::FileName(save_option) => {
-                        self.input_popup = Some(
-                            InputComponent::from(content.as_str())
-                                .with_cursor(0)
-                                .with_confirm_callback(move |value| {
-                                    Event::emit(Event::InputConfirm);
-                                    Event::emit(Event::Save((value, save_option)));
-                                })
-                                .popup(),
-                        );
-                    }
-                    crate::event::InputType::VarValue(name) => {
-                        self.input_popup = Some(
-                            InputComponent::from(content.as_str())
-                                .with_confirm_callback(move |value| {
-                                    Event::emit(Event::InputConfirm);
-                                    Event::emit(Event::UpdateVar((name.clone(), value)));
-                                })
-                                .popup(),
-                        );
-                    }
-                };
+            Event::NewInput(builder) => {
+                self.input_popup = Some(builder.build().popup());
                 Ok(())
             }
             Event::InputCancel => {

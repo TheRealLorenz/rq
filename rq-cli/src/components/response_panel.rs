@@ -9,12 +9,10 @@ use ratatui::{
 use rq_core::request::{mime::Payload, Response, StatusCode};
 use std::{fmt::Write, iter};
 
-use crate::{
-    app::FocusState,
-    event::{Event, InputType},
-};
+use crate::{app::FocusState, event::Event};
 
 use super::{
+    input::builder::{InputBuilder, InputType},
     message_dialog::{Message, MessageDialog},
     BlockComponent, HandleResult, HandleSuccess,
 };
@@ -176,17 +174,19 @@ impl BlockComponent for ResponsePanel {
             KeyCode::Down | KeyCode::Char('j') => self.scroll_down(),
             KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
             KeyCode::Char('s') => {
-                Event::emit(Event::NewInput((
-                    self.extension().unwrap_or_default(),
-                    InputType::FileName(SaveOption::Body),
-                )));
+                Event::emit(Event::NewInput(
+                    InputBuilder::new(InputType::FileName(SaveOption::Body))
+                        .with_content(self.extension().unwrap_or_default())
+                        .with_cursor(0),
+                ));
             }
 
             KeyCode::Char('S') => {
-                Event::emit(Event::NewInput((
-                    self.extension().unwrap_or_default(),
-                    InputType::FileName(SaveOption::All),
-                )));
+                Event::emit(Event::NewInput(
+                    InputBuilder::new(InputType::FileName(SaveOption::All))
+                        .with_content(self.extension().unwrap_or_default())
+                        .with_cursor(0),
+                ));
             }
             KeyCode::Char('t') => {
                 self.show_raw = !self.show_raw;

@@ -6,6 +6,8 @@ use crate::event::Event;
 
 use super::BlockComponent;
 
+pub mod builder;
+
 type ConfirmCallback = Box<dyn Fn(String)>;
 type CancelCallback = Box<dyn Fn()>;
 
@@ -26,21 +28,21 @@ impl Default for InputComponent {
 }
 
 impl InputComponent {
-    pub fn from(value: &str) -> Self {
+    fn from(value: &str) -> Self {
         Self {
             input: Input::from(value),
             ..Self::default()
         }
     }
 
-    pub fn with_cursor(self, cursor: usize) -> Self {
+    fn with_cursor(self, cursor: usize) -> Self {
         Self {
             input: self.input.with_cursor(cursor),
             ..self
         }
     }
 
-    pub fn with_confirm_callback<F>(self, confirm_callback: F) -> Self
+    fn with_confirm_callback<F>(self, confirm_callback: F) -> Self
     where
         F: Fn(String) + 'static,
     {
@@ -50,7 +52,7 @@ impl InputComponent {
         }
     }
 
-    pub fn with_cancel_callback<F>(self, cancel_callback: F) -> Self
+    fn with_cancel_callback<F>(self, cancel_callback: F) -> Self
     where
         F: Fn() + 'static,
     {

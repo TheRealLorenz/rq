@@ -4,8 +4,12 @@ use crossterm::event::KeyCode;
 use rq_core::parser::variables::TemplateString;
 
 use crate::{
-    components::{menu::Menu, BlockComponent, HandleSuccess},
-    event::{Event, InputType},
+    components::{
+        input::builder::{InputBuilder, InputType},
+        menu::Menu,
+        BlockComponent, HandleSuccess,
+    },
+    event::Event,
 };
 
 pub struct VarsPanel {
@@ -17,10 +21,10 @@ impl VarsPanel {
     pub fn new(vars: HashMap<String, TemplateString>) -> Self {
         let menu = Menu::new(vars.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
             .with_confirm_callback(|(name, value)| {
-                Event::emit(Event::NewInput((
-                    value.to_string(),
-                    InputType::VarValue(name.clone()),
-                )));
+                Event::emit(Event::NewInput(
+                    InputBuilder::new(InputType::VarValue(name.clone()))
+                        .with_content(value.to_string()),
+                ))
             });
 
         Self { vars, menu }
