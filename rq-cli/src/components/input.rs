@@ -20,7 +20,7 @@ impl Default for InputComponent {
         Self {
             input: Input::default(),
             on_confirm_callback: None,
-            on_cancel_callback: Box::new(|| Event::emit(Event::InputCancel)),
+            on_cancel_callback: Box::new(|| Event::emit(Event::PopupDismiss)),
         }
     }
 }

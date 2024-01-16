@@ -3,7 +3,7 @@ use ratatui::{
     widgets::{Paragraph, Wrap},
 };
 
-use crate::event::Message;
+use crate::event::{Event, Message};
 
 use super::{BlockComponent, HandleResult, HandleSuccess};
 
@@ -22,6 +22,8 @@ impl BlockComponent for MessageDialog {
     }
 
     fn on_event(&mut self, _key_event: crossterm::event::KeyEvent) -> HandleResult {
+        Event::emit(Event::PopupDismiss);
+
         Ok(HandleSuccess::Consumed)
     }
 

@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use anyhow::anyhow;
 use ratatui::{
     prelude::{Constraint, Direction, Layout},
@@ -36,8 +38,7 @@ pub struct App {
     should_exit: bool,
     file_path: String,
     focus: FocusState,
-    message_popup: Option<Popup>,
-    input_popup: Option<Popup>,
+    popups: VecDeque<Popup>,
 }
 
 fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(Response, usize)>) {
@@ -78,23 +79,12 @@ impl App {
             responses,
             should_exit: false,
             focus: FocusState::default(),
-            message_popup: None,
-            input_popup: None,
+            popups: VecDeque::new(),
         }
     }
 
     async fn on_key_event(&mut self, event: KeyEvent) -> anyhow::Result<()> {
-        if let Some(popup) = self.message_popup.as_mut() {
-            match popup.on_event(event)? {
-                HandleSuccess::Consumed => {
-                    self.message_popup = None;
-                    return Ok(());
-                }
-                HandleSuccess::Ignored => (),
-            };
-        }
-
-        if let Some(popup) = self.input_popup.as_mut() {
+        if let Some(popup) = self.popups.front_mut() {
             match popup.on_event(event)? {
                 HandleSuccess::Consumed => {
                     return Ok(());
@@ -179,11 +169,7 @@ impl App {
         response_panel.render(f, response_chunk, response_block);
         legend.render(f, legend_chunk, Block::default());
 
-        if let Some(popup) = self.message_popup.as_ref() {
-            popup.render(f, f.size(), Block::default().borders(Borders::ALL));
-        }
-
-        if let Some(popup) = self.input_popup.as_ref() {
+        if let Some(popup) = self.popups.front() {
             popup.render(f, f.size(), Block::default().borders(Borders::ALL));
         }
     }
@@ -218,11 +204,11 @@ impl App {
             Event::NewInput((content, typ)) => {
                 match typ {
                     crate::event::InputType::FileName(save_option) => {
-                        self.input_popup = Some(Popup::new(Box::new(
+                        self.popups.push_back(Popup::new(Box::new(
                             InputComponent::from(content.as_str())
                                 .with_cursor(0)
                                 .with_confirm_callback(move |value| {
-                                    Event::emit(Event::InputConfirm);
+                                    Event::emit(Event::PopupDismiss);
                                     Event::emit(Event::Save((value, save_option)));
                                 }),
                         )));
@@ -230,12 +216,8 @@ impl App {
                 };
                 Ok(())
             }
-            Event::InputCancel => {
-                self.input_popup = None;
-                Ok(())
-            }
-            Event::InputConfirm => {
-                self.input_popup = None;
+            Event::PopupDismiss => {
+                self.popups.pop_front();
                 Ok(())
             }
             Event::SendRequest(idx) => {
@@ -247,7 +229,8 @@ impl App {
                     .map_err(|e| anyhow!(e))
             }
             Event::Message(message) => {
-                self.message_popup = Some(Popup::new(Box::new(MessageDialog::new(message))));
+                self.popups
+                    .push_back(Popup::new(Box::new(MessageDialog::new(message))));
                 Ok(())
             }
         };
