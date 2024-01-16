@@ -13,12 +13,18 @@ pub enum Event {
     InputConfirm,
     InputCancel,
     SendRequest(usize),
+    Message(Message),
     Key(crossterm::event::KeyEvent),
     Other(crossterm::event::Event),
 }
 
 pub enum InputType {
     FileName(SaveOption),
+}
+
+pub enum Message {
+    Info(String),
+    Error(String),
 }
 
 impl Event {

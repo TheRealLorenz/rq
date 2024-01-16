@@ -14,15 +14,10 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{
     components::{
-        input::InputComponent,
-        legend::Legend,
-        menu::Menu,
-        message_dialog::{Message, MessageDialog},
-        popup::Popup,
-        response_panel::ResponsePanel,
-        BlockComponent, HandleSuccess,
+        input::InputComponent, legend::Legend, menu::Menu, message_dialog::MessageDialog,
+        popup::Popup, response_panel::ResponsePanel, BlockComponent, HandleSuccess,
     },
-    event::Event,
+    event::{Event, Message},
 };
 
 #[derive(Default)]
@@ -51,7 +46,7 @@ fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(R
             match rq_core::request::execute(&req).await {
                 Ok(data) => res_tx.send((data, i)).await.unwrap(),
                 Err(e) => {
-                    MessageDialog::push_message(Message::Error(e.to_string()));
+                    Event::emit(Event::Message(Message::Error(e.to_string())));
                     continue;
                 }
             };
@@ -119,10 +114,7 @@ impl App {
                 return Ok(());
             }
             Ok(HandleSuccess::Ignored) => (),
-            Err(e) => {
-                MessageDialog::push_message(Message::Error(e.to_string()));
-                return Ok(());
-            }
+            Err(e) => return Err(e),
         };
 
         match event.code {
@@ -201,11 +193,6 @@ impl App {
         if let Ok((res, i)) = self.res_rx.try_recv() {
             self.responses[i].set_response(res);
         }
-
-        if self.message_popup.is_none() {
-            self.message_popup =
-                MessageDialog::pop_message().map(|message| Popup::new(Box::new(message)));
-        }
     }
 
     pub fn should_exit(&self) -> bool {
@@ -259,9 +246,13 @@ impl App {
                     .await
                     .map_err(|e| anyhow!(e))
             }
+            Event::Message(message) => {
+                self.message_popup = Some(Popup::new(Box::new(MessageDialog::new(message))));
+                Ok(())
+            }
         };
         if let Err(e) = result {
-            MessageDialog::push_message(Message::Error(e.to_string()));
+            Event::emit(Event::Message(Message::Error(e.to_string())));
         }
     }
 }

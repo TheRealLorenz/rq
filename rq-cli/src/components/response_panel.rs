@@ -11,13 +11,10 @@ use std::{fmt::Write, iter};
 
 use crate::{
     app::FocusState,
-    event::{Event, InputType},
+    event::{Event, InputType, Message},
 };
 
-use super::{
-    message_dialog::{Message, MessageDialog},
-    BlockComponent, HandleResult, HandleSuccess,
-};
+use super::{BlockComponent, HandleResult, HandleSuccess};
 
 #[derive(Copy, Clone, Default)]
 pub enum SaveOption {
@@ -142,7 +139,9 @@ impl ResponsePanel {
 
         std::fs::write(file_name, to_save)?;
 
-        MessageDialog::push_message(Message::Info(format!("Saved to {file_name}")));
+        Event::emit(Event::Message(Message::Info(format!(
+            "Saved to {file_name}"
+        ))));
 
         Ok(())
     }
@@ -152,7 +151,9 @@ impl ResponsePanel {
 
         std::fs::write(file_name, to_save)?;
 
-        MessageDialog::push_message(Message::Info(format!("Saved to {file_name}")));
+        Event::emit(Event::Message(Message::Info(format!(
+            "Saved to {file_name}"
+        ))));
 
         Ok(())
     }

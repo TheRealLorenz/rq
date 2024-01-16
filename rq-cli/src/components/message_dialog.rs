@@ -1,37 +1,18 @@
-use std::{collections::VecDeque, sync::Mutex};
-
-use once_cell::sync::Lazy;
 use ratatui::{
     style::{Color, Style},
     widgets::{Paragraph, Wrap},
 };
 
+use crate::event::Message;
+
 use super::{BlockComponent, HandleResult, HandleSuccess};
 
-static MESSAGES: Lazy<Mutex<VecDeque<Message>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
-
-#[derive(Clone)]
-pub enum Message {
-    Info(String),
-    Error(String),
-}
-
-#[derive(Clone)]
 pub struct MessageDialog {
     content: Message,
 }
-
 impl MessageDialog {
-    pub fn push_message(content: Message) {
-        MESSAGES.lock().unwrap().push_back(content);
-    }
-
-    pub fn pop_message() -> Option<Self> {
-        MESSAGES
-            .lock()
-            .unwrap()
-            .pop_front()
-            .map(|content| Self { content })
+    pub fn new(message: Message) -> Self {
+        Self { content: message }
     }
 }
 
