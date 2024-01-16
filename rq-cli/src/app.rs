@@ -38,7 +38,7 @@ pub struct App {
     should_exit: bool,
     file_path: String,
     focus: FocusState,
-    popups: VecDeque<Popup>,
+    popups: VecDeque<Box<dyn BlockComponent>>,
 }
 
 fn spawn_request_handler(
@@ -206,7 +206,7 @@ impl App {
             Event::NewInput((content, typ)) => {
                 match typ {
                     crate::event::InputType::FileName(save_option) => {
-                        self.popups.push_back(Popup::new(Box::new(
+                        self.popups.push_back(Box::new(Popup::new(
                             InputComponent::from(content.as_str())
                                 .with_cursor(0)
                                 .with_confirm_callback(move |value| {
@@ -232,7 +232,7 @@ impl App {
             }
             Event::Message(message) => {
                 self.popups
-                    .push_back(Popup::new(Box::new(MessageDialog::new(message))));
+                    .push_back(Box::new(Popup::new(MessageDialog::new(message))));
                 Ok(())
             }
         };

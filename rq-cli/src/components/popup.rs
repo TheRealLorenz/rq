@@ -5,14 +5,14 @@ use ratatui::{
 
 use super::{legend::Legend, BlockComponent};
 
-pub struct Popup {
-    component: Box<dyn BlockComponent>,
+pub struct Popup<T: BlockComponent> {
+    component: T,
     w_percent: u16,
     h_percent: u16,
 }
 
-impl Popup {
-    pub fn new(widget: Box<dyn BlockComponent>) -> Self {
+impl<T: BlockComponent> Popup<T> {
+    pub fn new(widget: T) -> Self {
         Self {
             component: widget,
             w_percent: 40,
@@ -21,7 +21,7 @@ impl Popup {
     }
 }
 
-impl BlockComponent for Popup {
+impl<T: BlockComponent> BlockComponent for Popup<T> {
     fn on_event(&mut self, key_event: crossterm::event::KeyEvent) -> super::HandleResult {
         self.component.on_event(key_event)
     }
