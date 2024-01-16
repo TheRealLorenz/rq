@@ -41,7 +41,10 @@ pub struct App {
     popups: VecDeque<Popup>,
 }
 
-fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(Response, usize)>) {
+fn spawn_request_handler(
+    mut req_rx: Receiver<(HttpRequest, usize)>,
+    res_tx: Sender<(Response, usize)>,
+) {
     tokio::spawn(async move {
         while let Some((req, i)) = req_rx.recv().await {
             match rq_core::request::execute(&req).await {
@@ -62,7 +65,7 @@ impl App {
         let (req_tx, req_rx) = channel::<(HttpRequest, usize)>(1);
         let (res_tx, res_rx) = channel::<(Response, usize)>(1);
 
-        handle_requests(req_rx, res_tx);
+        spawn_request_handler(req_rx, res_tx);
 
         let responses = (0..http_file.requests.len())
             .map(|idx| ResponsePanel::default().with_idx(idx))
