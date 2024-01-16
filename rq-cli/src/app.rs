@@ -41,8 +41,8 @@ pub struct App {
     should_exit: bool,
     file_path: String,
     focus: FocusState,
-    message_popup: Option<Popup<MessageDialog>>,
-    input_popup: Option<Popup<InputComponent>>,
+    message_popup: Option<Popup>,
+    input_popup: Option<Popup>,
 }
 
 fn handle_requests(mut req_rx: Receiver<(HttpRequest, usize)>, res_tx: Sender<(Response, usize)>) {
@@ -164,12 +164,12 @@ impl App {
             FocusState::RequestsList => (
                 Style::default().fg(Color::Blue),
                 Style::default(),
-                Legend::new(Self::KEYMAPS.iter().chain(Menu::<HttpRequest>::keymaps())),
+                Legend::new(Self::KEYMAPS.iter().chain(self.request_menu.keymaps())),
             ),
             FocusState::ResponsePanel => (
                 Style::default(),
                 Style::default().fg(Color::Blue),
-                Legend::new(Self::KEYMAPS.iter().chain(ResponsePanel::keymaps())),
+                Legend::new(Self::KEYMAPS.iter().chain(self.responses[0].keymaps())),
             ),
         };
 
@@ -203,7 +203,8 @@ impl App {
         }
 
         if self.message_popup.is_none() {
-            self.message_popup = MessageDialog::pop_message().map(BlockComponent::popup);
+            self.message_popup =
+                MessageDialog::pop_message().map(|message| Popup::new(Box::new(message)));
         }
     }
 
@@ -230,15 +231,14 @@ impl App {
             Event::NewInput((content, typ)) => {
                 match typ {
                     crate::event::InputType::FileName(save_option) => {
-                        self.input_popup = Some(
+                        self.input_popup = Some(Popup::new(Box::new(
                             InputComponent::from(content.as_str())
                                 .with_cursor(0)
                                 .with_confirm_callback(move |value| {
                                     Event::emit(Event::InputConfirm);
                                     Event::emit(Event::Save((value, save_option)));
-                                })
-                                .popup(),
-                        );
+                                }),
+                        )));
                     }
                 };
                 Ok(())

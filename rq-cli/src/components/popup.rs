@@ -2,18 +2,17 @@ use ratatui::{
     prelude::{Constraint, Direction, Layout, Rect},
     widgets::{Block, Clear},
 };
-use std::ops::{Deref, DerefMut};
 
 use super::{legend::Legend, BlockComponent};
 
-pub struct Popup<T: BlockComponent> {
-    component: T,
+pub struct Popup {
+    component: Box<dyn BlockComponent>,
     w_percent: u16,
     h_percent: u16,
 }
 
-impl<T: BlockComponent> Popup<T> {
-    pub fn new(widget: T) -> Self {
+impl Popup {
+    pub fn new(widget: Box<dyn BlockComponent>) -> Self {
         Self {
             component: widget,
             w_percent: 40,
@@ -22,21 +21,7 @@ impl<T: BlockComponent> Popup<T> {
     }
 }
 
-impl<T: BlockComponent> Deref for Popup<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.component
-    }
-}
-
-impl<T: BlockComponent> DerefMut for Popup<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.component
-    }
-}
-
-impl<T: BlockComponent> BlockComponent for Popup<T> {
+impl BlockComponent for Popup {
     fn on_event(&mut self, key_event: crossterm::event::KeyEvent) -> super::HandleResult {
         self.component.on_event(key_event)
     }
@@ -80,6 +65,6 @@ impl<T: BlockComponent> BlockComponent for Popup<T> {
         };
 
         self.component.render(frame, popup_area, block);
-        Legend::new(T::keymaps().iter()).render(frame, legend_area, Block::default());
+        Legend::new(self.component.keymaps().iter()).render(frame, legend_area, Block::default());
     }
 }

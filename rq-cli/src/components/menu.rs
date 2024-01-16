@@ -65,7 +65,7 @@ impl<T: MenuItem> Menu<T> {
 }
 
 impl<T: MenuItem> BlockComponent for Menu<T> {
-    fn keymaps() -> &'static [(&'static str, &'static str)] {
+    fn keymaps(&self) -> &'static [(&'static str, &'static str)] {
         [("↓/↑ j/k", "next/previous"), ("Enter", "select")].as_slice()
     }
 

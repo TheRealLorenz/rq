@@ -3,8 +3,6 @@ use ratatui::{prelude::Rect, widgets::Block};
 
 use crate::terminal::Frame;
 
-use self::popup::Popup;
-
 pub mod http_request;
 pub mod input;
 pub mod legend;
@@ -34,13 +32,7 @@ pub trait BlockComponent {
     }
     fn update(&mut self) {}
     fn render(&self, frame: &mut Frame, area: Rect, block: Block);
-    fn popup(self) -> Popup<Self>
-    where
-        Self: std::marker::Sized,
-    {
-        Popup::new(self)
-    }
-    fn keymaps() -> &'static [(&'static str, &'static str)] {
+    fn keymaps(&self) -> &'static [(&'static str, &'static str)] {
         &[]
     }
 }

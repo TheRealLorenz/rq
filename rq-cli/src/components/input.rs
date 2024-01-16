@@ -62,7 +62,7 @@ impl InputComponent {
 }
 
 impl BlockComponent for InputComponent {
-    fn keymaps() -> &'static [(&'static str, &'static str)] {
+    fn keymaps(&self) -> &'static [(&'static str, &'static str)] {
         [("Enter", "confirm"), ("Esc", "cancel")].as_slice()
     }
 

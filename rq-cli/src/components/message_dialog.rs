@@ -36,7 +36,7 @@ impl MessageDialog {
 }
 
 impl BlockComponent for MessageDialog {
-    fn keymaps() -> &'static [(&'static str, &'static str)] {
+    fn keymaps(&self) -> &'static [(&'static str, &'static str)] {
         [("any", "dismiss")].as_slice()
     }
 

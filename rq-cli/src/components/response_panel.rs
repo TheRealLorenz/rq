@@ -159,7 +159,7 @@ impl ResponsePanel {
 }
 
 impl BlockComponent for ResponsePanel {
-    fn keymaps() -> &'static [(&'static str, &'static str)] {
+    fn keymaps(&self) -> &'static [(&'static str, &'static str)] {
         [
             ("Esc", "back to list"),
             ("↓/↑ j/k", "scroll down/up"),
