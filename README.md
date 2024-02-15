@@ -10,6 +10,12 @@ alternative to [vscode-restclient](https://github.com/Huachao/vscode-restclient)
 
 Original author blogpost: https://protiumx.github.io/blog/posts/an-http-request-parser-with-rust-and-pest-rs/
 
+## Installation
+
+```bash
+cargo install --path rq-cli
+```
+
 ## HTTP File
 
 The `pest` grammar can be found [here](./rq-core/src/grammar.pest).
