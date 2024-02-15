@@ -19,7 +19,7 @@ method = { "GET" | "DELETE" | "POST" | "PUT" }
 url = @{ (!"?" ~ char)+ }
 
 query = @{
-	PUSH(NEWLINE ~ " "* | "") ~
+	PUSH(NEWLINE ~ (" " | "\t")* | "") ~
 	"?" ~ query_item ~
 	(PEEK ~ "&" ~ query_item)* ~
 	DROP
