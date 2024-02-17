@@ -1,46 +1,45 @@
 use pest::error::Error;
-use pest::iterators::{Pair, Pairs};
+use pest::iterators::Pair;
 use pest::Parser;
 
-use reqwest::header::HeaderMap;
-use reqwest::{Method, Version};
+use reqwest::{header::HeaderMap, Method, Version};
 use std::collections::HashMap;
-use std::fmt::Display;
 use std::result::Result;
+
+use self::variables::{FillError, HashTemplateMap, TemplateString};
+
+mod values;
+pub mod variables;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
 struct HttpParser;
 
-#[derive(Clone, Debug, Default)]
-struct HttpHeaders(HashMap<String, String>);
-
-impl Display for HttpHeaders {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = self
-            .0
-            .iter()
-            .map(|(key, value)| format!("{key}: {value}"))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        write!(f, "[{s}]")
-    }
+#[derive(Debug)]
+pub struct TemplateRequest {
+    pub method: Method,
+    pub url: TemplateString,
+    pub query: HashTemplateMap,
+    pub version: Version,
+    pub headers: HashTemplateMap,
+    pub body: TemplateString,
 }
 
-impl<'i> From<Pairs<'i, Rule>> for HttpHeaders {
-    fn from(pairs: Pairs<'i, Rule>) -> Self {
-        let headers = pairs
-            .map(|pair| {
-                let mut kv = pair.into_inner();
-                let key = kv.next().unwrap().as_str().to_string();
-                let value = kv.next().unwrap().as_str().to_string();
+impl TemplateRequest {
+    pub fn fill(
+        &self,
+        parameters: &HashMap<String, TemplateString>,
+    ) -> Result<HttpRequest, FillError> {
+        let req = HttpRequest {
+            method: self.method.clone(),
+            url: self.url.fill(parameters)?,
+            query: self.query.fill(parameters)?,
+            version: self.version,
+            headers: (&self.headers.fill(parameters)?).try_into().unwrap(),
+            body: self.body.fill(parameters)?,
+        };
 
-                (key, value)
-            })
-            .collect();
-
-        HttpHeaders(headers)
+        Ok(req)
     }
 }
 
@@ -61,17 +60,11 @@ pub struct HttpRequest {
     pub url: String,
     pub query: HashMap<String, String>,
     pub version: Version,
-    headers: HttpHeaders,
+    pub headers: HeaderMap,
     pub body: String,
 }
 
-impl HttpRequest {
-    pub fn headers(&self) -> HeaderMap {
-        (&self.headers.0).try_into().unwrap()
-    }
-}
-
-impl<'i> From<Pair<'i, Rule>> for HttpRequest {
+impl<'i> From<Pair<'i, Rule>> for TemplateRequest {
     fn from(request: Pair<'i, Rule>) -> Self {
         let mut pairs = request.into_inner().peekable();
 
@@ -80,28 +73,11 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
             .map(|pair| pair.as_str().try_into().unwrap())
             .unwrap_or_default();
 
-        let url = pairs.next().unwrap().as_str().to_string();
+        let url = pairs.next().unwrap().into();
 
-        let query = pairs
+        let query: HashTemplateMap = pairs
             .next_if(|pair| pair.as_rule() == Rule::query)
-            .map(|pair| {
-                pair.into_inner()
-                    .map(|pair| {
-                        let mut pairs = pair.into_inner();
-
-                        let key = pairs.next().unwrap().as_str().to_string();
-                        let value = pairs.next().unwrap().as_str().to_string();
-
-                        for c in ['\'', '"'] {
-                            if value.starts_with(c) && value.ends_with(c) {
-                                return (key, value.trim_matches(c).to_string());
-                            }
-                        }
-
-                        (key, value)
-                    })
-                    .collect::<HashMap<String, String>>()
-            })
+            .map(|pair| pair.into())
             .unwrap_or_default();
 
         let version = pairs
@@ -109,15 +85,12 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
             .map(|pair| http_version_from_str(pair.as_str()))
             .unwrap_or_default();
 
-        let headers: HttpHeaders = pairs
+        let headers: HashTemplateMap = pairs
             .next_if(|pair| pair.as_rule() == Rule::headers)
-            .map(|pair| pair.into_inner().into())
+            .map(|pair| pair.into())
             .unwrap_or_default();
 
-        let body = pairs
-            .next()
-            .map(|pair| pair.as_str().to_string())
-            .unwrap_or_default();
+        let body = pairs.next().map(Pair::into).unwrap_or_default();
 
         Self {
             method,
@@ -130,58 +103,45 @@ impl<'i> From<Pair<'i, Rule>> for HttpRequest {
     }
 }
 
-impl Display for HttpRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{} {} {:?} {}",
-            self.method, self.url, self.version, self.headers
-        )
-    }
-}
-
 #[derive(Debug)]
 pub struct HttpFile {
-    pub requests: Vec<HttpRequest>,
+    pub requests: Vec<TemplateRequest>,
+    pub variables: HashMap<String, TemplateString>,
 }
 
 impl<'i> From<Pair<'i, Rule>> for HttpFile {
     fn from(pair: Pair<Rule>) -> Self {
-        let requests = pair
-            .into_inner()
-            .filter_map(|pair| match pair.as_rule() {
-                Rule::request => Some(pair.into()),
-                _ => None,
-            })
-            .collect();
+        let mut requests = Vec::new();
+        let mut variables = HashMap::new();
 
-        Self { requests }
-    }
-}
+        for pair in pair.into_inner() {
+            match pair.as_rule() {
+                Rule::request => requests.push(pair.into()),
+                Rule::var_def_block => variables.extend(variables::parse_def_block(pair)),
 
-impl Display for HttpFile {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.requests.is_empty() {
-            writeln!(f, "No requests found")?;
-            return Ok(());
+                Rule::EOI | Rule::DELIM => (),
+
+                _ => unreachable!(),
+            }
         }
-        for (i, req) in self.requests.iter().enumerate() {
-            write!(f, "#{i}\n{req}\n")?;
+
+        Self {
+            requests,
+            variables,
         }
-        Ok(())
     }
 }
 
 pub fn parse(input: &str) -> Result<HttpFile, Box<Error<Rule>>> {
-    let pair = HttpParser::parse(Rule::file, input.trim_start())?
-        .next()
-        .unwrap();
+    let pair = HttpParser::parse(Rule::file, input)?.next().unwrap();
     Ok(HttpFile::from(pair))
 }
 
 #[cfg(test)]
 mod tests {
     use core::panic;
+
+    use crate::parser::variables::{Fragment, TemplateString};
 
     use super::{parse, HttpFile};
     use reqwest::{Method, Version};
@@ -209,7 +169,7 @@ GET foo.bar HTTP/1.1
         let file = assert_parses(input);
         assert_eq!(file.requests.len(), 1);
         assert_eq!(file.requests[0].method, Method::GET);
-        assert_eq!(file.requests[0].url, "foo.bar");
+        assert_eq!(file.requests[0].url.to_string(), "foo.bar");
         assert_eq!(file.requests[0].version, Version::HTTP_11);
     }
 
@@ -236,6 +196,23 @@ GET foo.bar
     }
 
     #[test]
+    fn test_var_in_url() {
+        let input = r#"
+GET foo{{url}}bar HTTP/1.1
+
+"#;
+        let file = assert_parses(input);
+        assert_eq!(
+            file.requests[0].url,
+            TemplateString::new(vec![
+                Fragment::raw("foo"),
+                Fragment::var("url"),
+                Fragment::raw("bar")
+            ])
+        );
+    }
+
+    #[test]
     fn test_headers() {
         let input = r#"
 POST test.dev HTTP/1.0
@@ -244,10 +221,31 @@ authorization: Bearer xxxx
 "#;
         let file = assert_parses(input);
         assert_eq!(file.requests.len(), 1);
-        assert_eq!(file.requests[0].headers.0.len(), 1);
+        assert_eq!(file.requests[0].headers.len(), 1);
         assert_eq!(
-            file.requests[0].headers.0.get("authorization").unwrap(),
+            file.requests[0]
+                .headers
+                .get("authorization")
+                .unwrap()
+                .to_string(),
             "Bearer xxxx"
+        );
+    }
+
+    #[test]
+    fn test_var_in_headers() {
+        let input = r#"
+POST test.dev HTTP/1.0
+aabb: {{value}}{{barbar}}
+
+"#;
+        let file = assert_parses(input);
+        assert_eq!(
+            file.requests[0].headers.get("aabb"),
+            Some(&TemplateString::new(vec![
+                Fragment::var("value"),
+                Fragment::var("barbar")
+            ]))
         );
     }
 
@@ -258,7 +256,24 @@ POST test.dev HTTP/1.0
 
 { "test": "body" }"#;
         let file = assert_parses(input);
-        assert_eq!(file.requests[0].body, "{ \"test\": \"body\" }");
+        assert_eq!(file.requests[0].body.to_string(), "{ \"test\": \"body\" }");
+    }
+
+    #[test]
+    fn test_var_in_body() {
+        let input = r#"
+POST test.dev HTTP/1.0
+
+aaa{{var}}bbb"#;
+        let file = assert_parses(input);
+        assert_eq!(
+            file.requests[0].body,
+            TemplateString::new(vec![
+                Fragment::raw("aaa"),
+                Fragment::var("var"),
+                Fragment::raw("bbb")
+            ])
+        )
     }
 
     #[test]
@@ -286,8 +301,14 @@ authorization: token
         let file = assert_parses(input);
         assert_eq!(file.requests.len(), 1);
         assert_eq!(file.requests[0].query.len(), 3);
-        assert_eq!(file.requests[0].query.get("foo").unwrap(), "bar");
-        assert_eq!(file.requests[0].query.get("baz").unwrap(), "2");
+        assert_eq!(
+            file.requests[0].query.get("foo"),
+            Some(&TemplateString::new(vec![Fragment::raw("bar")]))
+        );
+        assert_eq!(
+            file.requests[0].query.get("baz"),
+            Some(&TemplateString::new(vec![Fragment::raw("2")]))
+        );
     }
 
     #[test]
@@ -300,8 +321,14 @@ authorization: token
         let file = assert_parses(input);
         assert_eq!(file.requests.len(), 1);
         assert_eq!(file.requests[0].query.len(), 2);
-        assert_eq!(file.requests[0].query.get("foo").unwrap(), " bar");
-        assert_eq!(file.requests[0].query.get("baz").unwrap(), "  &ciao");
+        assert_eq!(
+            file.requests[0].query.get("foo"),
+            Some(&TemplateString::raw(" bar"))
+        );
+        assert_eq!(
+            file.requests[0].query.get("baz"),
+            Some(&TemplateString::raw("  &ciao"))
+        );
     }
 
     #[test]
@@ -316,7 +343,89 @@ authorization: token
         let file = assert_parses(input);
         assert_eq!(file.requests.len(), 1);
         assert_eq!(file.requests[0].query.len(), 2);
-        assert_eq!(file.requests[0].query.get("foo").unwrap(), "bar");
-        assert_eq!(file.requests[0].query.get("baz").unwrap(), "42");
+        assert_eq!(
+            file.requests[0].query.get("foo"),
+            Some(&TemplateString::raw("bar"))
+        );
+        assert_eq!(
+            file.requests[0].query.get("baz"),
+            Some(&TemplateString::raw("42"))
+        );
+    }
+
+    #[test]
+    fn test_var_in_query() {
+        let input = r#"
+POST test.dev
+        ?foo=aaa{{var}}
+        &baz="bbb"{{var2}} HTTP/1.0
+authorization: token
+
+"#;
+        let file = assert_parses(input);
+        assert_eq!(
+            file.requests[0].query.get("foo"),
+            Some(&TemplateString::new(vec![
+                Fragment::raw("aaa"),
+                Fragment::var("var")
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_file_variable() {
+        let input = r#"
+@name = foo
+@bar = baz
+@foo = " 123"
+
+###
+
+POST test.dev
+        ?foo=bar
+        &baz=42 HTTP/1.0
+authorization: token
+
+"#;
+        let file = assert_parses(input);
+        assert_eq!(file.variables.len(), 3);
+        assert_eq!(
+            file.variables.get("name"),
+            Some(&TemplateString::raw("foo"))
+        );
+        assert_eq!(file.variables.get("bar"), Some(&TemplateString::raw("baz")));
+        assert_eq!(
+            file.variables.get("foo"),
+            Some(&TemplateString::raw(" 123"))
+        );
+    }
+
+    #[test]
+    fn test_var_in_file_var() {
+        let input = r#"
+@name = foo
+@bar = aaa{{var}}
+@foo = " 123"
+
+###
+
+POST test.dev
+        ?foo=bar
+        &baz=42 HTTP/1.0
+authorization: token
+
+###
+
+@test = test
+
+"#;
+        let file = assert_parses(input);
+        assert_eq!(
+            file.variables.get("bar"),
+            Some(&TemplateString::new(vec![
+                Fragment::raw("aaa"),
+                Fragment::var("var")
+            ]))
+        );
     }
 }

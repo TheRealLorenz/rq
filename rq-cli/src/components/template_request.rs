@@ -2,18 +2,18 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
 };
-use rq_core::parser::HttpRequest;
+use rq_core::parser::TemplateRequest;
 
 use super::menu::MenuItem;
 
-impl MenuItem for HttpRequest {
+impl MenuItem for TemplateRequest {
     fn render(&self) -> Vec<ratatui::text::Line<'_>> {
         let mut lines = Vec::new();
 
         let mut first_line_spans = vec![
             Span::styled(self.method.to_string(), Style::default().fg(Color::Green)),
             Span::raw(" "),
-            Span::raw(self.url.as_str()),
+            Span::raw(self.url.to_string()),
         ];
         let version_span = Span::raw(format!(" {:?}", self.version));
 
@@ -30,7 +30,7 @@ impl MenuItem for HttpRequest {
                     ),
                     Span::raw(k),
                     Span::raw("="),
-                    Span::raw(v),
+                    Span::raw(v.to_string()),
                 ])
             })
             .collect::<Vec<_>>();
@@ -45,13 +45,13 @@ impl MenuItem for HttpRequest {
         }
 
         let headers: Vec<Line> = self
-            .headers()
+            .headers
             .iter()
             .map(|(k, v)| {
                 Line::from(vec![
                     Span::styled(k.to_string(), Style::default().fg(Color::Blue)),
                     Span::raw(": "),
-                    Span::raw(v.to_str().unwrap().to_string()),
+                    Span::raw(v.to_string()),
                 ])
             })
             .collect();
@@ -85,9 +85,9 @@ impl MenuItem for HttpRequest {
             lines.pop();
             lines.pop();
 
-            for line in self.body.lines() {
+            for line in self.body.to_string().lines() {
                 lines.push(Line::styled(
-                    line,
+                    line.to_owned(),
                     Style::default().fg(Color::Rgb(246, 133, 116)),
                 ));
             }

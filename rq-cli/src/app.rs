@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Block, Borders},
 };
 use rq_core::{
-    parser::{HttpFile, HttpRequest},
+    parser::{HttpFile, HttpRequest, TemplateRequest},
     request::Response,
 };
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -16,8 +16,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{
     components::{
-        input::InputComponent, legend::Legend, menu::Menu, message_dialog::MessageDialog,
-        popup::Popup, response_panel::ResponsePanel, BlockComponent, HandleSuccess,
+        legend::Legend, menu::Menu, message_dialog::MessageDialog, popup::Popup,
+        response_panel::ResponsePanel, variables::panel::VarsPanel, BlockComponent, HandleSuccess,
     },
     event::{Event, Message},
 };
@@ -27,16 +27,20 @@ pub enum FocusState {
     #[default]
     RequestsList,
     ResponsePanel,
+    VarsPanel,
 }
 
 pub struct App {
     res_rx: Receiver<(Response, usize)>,
     req_tx: Sender<(HttpRequest, usize)>,
 
-    request_menu: Menu<HttpRequest>,
+    request_menu: Menu<TemplateRequest>,
+    vars_panel: VarsPanel,
+    file_path: String,
+
     responses: Vec<ResponsePanel>,
     should_exit: bool,
-    file_path: String,
+    vars_visible: bool,
     focus: FocusState,
     popups: VecDeque<Box<dyn BlockComponent>>,
 }
@@ -47,11 +51,10 @@ fn spawn_request_handler(
 ) {
     tokio::spawn(async move {
         while let Some((req, i)) = req_rx.recv().await {
-            match rq_core::request::execute(&req).await {
+            match rq_core::request::execute(req).await {
                 Ok(data) => res_tx.send((data, i)).await.unwrap(),
                 Err(e) => {
                     Event::emit(Event::Message(Message::Error(e.to_string())));
-                    continue;
                 }
             };
         }
@@ -59,7 +62,8 @@ fn spawn_request_handler(
 }
 
 impl App {
-    const KEYMAPS: &'static [(&'static str, &'static str); 1] = &[("q", "exit")];
+    const KEYMAPS: &'static [(&'static str, &'static str); 2] =
+        &[("q", "exit"), ("v", "variables")];
 
     pub fn new(file_path: String, http_file: HttpFile) -> Self {
         let (req_tx, req_rx) = channel::<(HttpRequest, usize)>(1);
@@ -75,12 +79,15 @@ impl App {
             .with_confirm_callback(|_| Event::emit(Event::Focus(FocusState::ResponsePanel)));
 
         App {
-            file_path,
             res_rx,
             req_tx,
+
             request_menu,
+            file_path,
+            vars_panel: VarsPanel::new(http_file.variables),
             responses,
             should_exit: false,
+            vars_visible: true,
             focus: FocusState::default(),
             popups: VecDeque::new(),
         }
@@ -107,6 +114,7 @@ impl App {
         let event_result = match self.focus {
             FocusState::RequestsList => self.request_menu.on_event(event),
             FocusState::ResponsePanel => self.responses[self.request_menu.idx()].on_event(event),
+            FocusState::VarsPanel => self.vars_panel.on_event(event),
         };
 
         match event_result {
@@ -117,8 +125,12 @@ impl App {
             Err(e) => return Err(e),
         };
 
-        if let KeyCode::Char('q' | 'Q') = event.code {
-            self.should_exit = true;
+        match event.code {
+            KeyCode::Char('q' | 'Q') => {
+                self.should_exit = true;
+            }
+            KeyCode::Char('v') => Event::emit(Event::Focus(FocusState::VarsPanel)),
+            _ => (),
         };
 
         Ok(())
@@ -135,7 +147,7 @@ impl App {
         };
 
         // Create two chunks with equal screen space
-        let [list_chunk, response_chunk] = {
+        let [mut list_chunk, response_chunk] = {
             let x = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -144,16 +156,25 @@ impl App {
             [x[0], x[1]]
         };
 
-        let (list_border_style, response_border_style, legend) = match self.focus {
+        let (list_border_style, response_border_style, vars_border_style, legend) = match self.focus
+        {
             FocusState::RequestsList => (
                 Style::default().fg(Color::Blue),
+                Style::default(),
                 Style::default(),
                 Legend::new(Self::KEYMAPS.iter().chain(self.request_menu.keymaps())),
             ),
             FocusState::ResponsePanel => (
                 Style::default(),
                 Style::default().fg(Color::Blue),
+                Style::default(),
                 Legend::new(Self::KEYMAPS.iter().chain(self.responses[0].keymaps())),
+            ),
+            FocusState::VarsPanel => (
+                Style::default(),
+                Style::default(),
+                Style::default().fg(Color::Blue),
+                Legend::new(Self::KEYMAPS.iter().chain(self.vars_panel.keymaps())),
             ),
         };
 
@@ -165,6 +186,25 @@ impl App {
         let response_block = Block::default()
             .borders(Borders::ALL)
             .border_style(response_border_style);
+
+        if self.vars_visible {
+            let [new_list_chunk, var_chunk] = {
+                let x = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+                    .split(list_chunk);
+
+                [x[0], x[1]]
+            };
+
+            list_chunk = new_list_chunk;
+
+            let var_block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(vars_border_style);
+
+            self.vars_panel.render(f, var_chunk, var_block);
+        }
 
         self.request_menu.render(f, list_chunk, list_block);
         let response_panel = &self.responses[self.request_menu.idx()];
@@ -203,38 +243,39 @@ impl App {
                     self.responses[self.request_menu.idx()].save_body(&file_name)
                 }
             },
-            Event::NewInput((content, typ)) => {
-                match typ {
-                    crate::event::InputType::FileName(save_option) => {
-                        self.popups.push_back(Box::new(Popup::new(
-                            InputComponent::from(content.as_str())
-                                .with_cursor(0)
-                                .with_confirm_callback(move |value| {
-                                    Event::emit(Event::PopupDismiss);
-                                    Event::emit(Event::Save((value, save_option)));
-                                }),
-                        )));
-                    }
-                };
+            Event::NewInput(builder) => {
+                self.popups.push_back(Box::new(Popup::new(builder.build())));
                 Ok(())
             }
-            Event::PopupDismiss => {
+            Event::PopupDismiss | Event::InputConfirm | Event::InputCancel => {
                 self.popups.pop_front();
                 Ok(())
             }
             Event::SendRequest(idx) => {
                 self.responses[idx].set_loading();
 
-                self.req_tx
-                    .send((self.request_menu.get(idx).clone(), idx))
-                    .await
-                    .map_err(|e| anyhow!(e))
+                match self.request_menu.get(idx).fill(self.vars_panel.vars()) {
+                    Ok(request) => self
+                        .req_tx
+                        .send((request, idx))
+                        .await
+                        .map_err(|e| anyhow!(e)),
+
+                    Err(e) => Err(anyhow!(e)),
+                }
             }
             Event::Message(message) => {
                 self.popups
                     .push_back(Box::new(Popup::new(MessageDialog::new(message))));
                 Ok(())
             }
+            Event::UpdateVar((name, value)) => match value.parse() {
+                Ok(value) => {
+                    self.vars_panel.update(name, value);
+                    Ok(())
+                }
+                Err(e) => Err(anyhow!(e)),
+            },
         };
         if let Err(e) = result {
             Event::emit(Event::Message(Message::Error(e.to_string())));

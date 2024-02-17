@@ -3,13 +3,14 @@ use ratatui::{prelude::Rect, widgets::Block};
 
 use crate::terminal::Frame;
 
-pub mod http_request;
 pub mod input;
 pub mod legend;
 pub mod menu;
 pub mod message_dialog;
 pub mod popup;
 pub mod response_panel;
+pub mod template_request;
+pub mod variables;
 
 pub enum HandleSuccess {
     Consumed,

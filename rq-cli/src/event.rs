@@ -2,23 +2,31 @@ use std::{collections::VecDeque, sync::Mutex};
 
 use once_cell::sync::Lazy;
 
-use crate::{app::FocusState, components::response_panel::SaveOption};
+use crate::{
+    app::FocusState,
+    components::{input::builder::InputBuilder, response_panel::SaveOption},
+};
 
 static EVENT_QUEUE: Lazy<Mutex<VecDeque<Event>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
 
 pub enum Event {
     Focus(FocusState),
     Save((String, SaveOption)),
-    NewInput((String, InputType)),
     PopupDismiss,
-    SendRequest(usize),
     Message(Message),
+    NewInput(InputBuilder),
+
+    InputConfirm,
+    InputCancel,
+
+    // Request index in menu
+    SendRequest(usize),
+
+    // Name, value
+    UpdateVar((String, String)),
+
     Key(crossterm::event::KeyEvent),
     Other(crossterm::event::Event),
-}
-
-pub enum InputType {
-    FileName(SaveOption),
 }
 
 pub enum Message {

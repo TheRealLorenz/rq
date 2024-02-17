@@ -1,7 +1,14 @@
-file = { SOI ~ (request ~ (DELIM ~ request)*)? ~ EOI}
+file = {
+	SOI ~
+	((request | var_def_block) ~
+	(DELIM ~ (request | var_def_block))*)? ~
+	EOI
+}
 
 DELIM = _{ "###" }
 WHITESPACE = _{ " " }
+VAR_BEGIN = _{ "{{" }
+VAR_END = _{ "}}" }
 
 char = { !(" " | "\n" | "\t") ~ ANY }
 
@@ -16,7 +23,8 @@ request = {
 
 method = { "GET" | "DELETE" | "POST" | "PUT" }
 
-url = @{ (!"?" ~ char)+ }
+url = ${ (var | url_fragment)+ }
+url_fragment = @{ (!(VAR_BEGIN | "?") ~ char)+ }
 
 query = @{
 	PUSH(NEWLINE ~ (" " | "\t")* | "") ~
@@ -26,21 +34,39 @@ query = @{
 }
 query_item = ${ query_name ~ "=" ~ query_value }
 query_name = @{ (!"=" ~ char)+ }
-query_value = @{
+query_value = $ { (var | query_value_fragment)+ }
+query_value_fragment = @{
 	(
 		PUSH("\"" | "'") ~
 		(!PEEK ~ ANY)+ ~
 		POP
 	) |
-	(!"&" ~ char)+
+	(!("&" | VAR_BEGIN) ~ char)+
 }
 
 version = { "HTTP/" ~ ("0.9" | "1.0" | "1.1" | "2.0" | "3.0") }
 
 headers = { (header ~ NEWLINE)+ }
-header = { header_name ~ ": " ~ header_value }
+header = { header_name ~ ":" ~ header_value }
 header_name = @{ (!":" ~ char)+ }
-header_value = @{ (" " | char)+ }
+header_value = ${ (var | header_value_fragment)+ }
+header_value_fragment = @{ (!VAR_BEGIN ~ (char | " "))+ }
 
-body = { (!DELIM ~ ANY)+ }
+body = ${ (var | body_fragment)+ }
+body_fragment = @{ (!(VAR_BEGIN | DELIM)~ ANY)+ }
 
+var = ${ VAR_BEGIN ~ var_name ~ VAR_END }
+var_name = @{ (!VAR_END ~ char)+ }
+
+var_def_block = { (NEWLINE* ~ var_def ~ NEWLINE*)+ }
+var_def = ${ "@" ~ var_def_name ~ " "? ~ "=" ~ " "? ~ var_def_value }
+var_def_name = @{ (!"=" ~ char)+ }
+var_def_value = ${ (var | var_def_value_fragment)+ }
+var_def_value_fragment = @{
+	(
+		PUSH("'" | "\"") ~
+		(!PEEK ~ ANY)+ ~
+		POP
+	) |
+	(!VAR_BEGIN ~ char)+
+}

@@ -46,12 +46,12 @@ impl Response {
 
 type RequestResult = Result<Response, Box<dyn std::error::Error + Send + Sync>>;
 
-pub async fn execute(req: &HttpRequest) -> RequestResult {
+pub async fn execute(req: HttpRequest) -> RequestResult {
     let request = CLIENT
-        .request(req.method.clone(), &req.url)
+        .request(req.method.clone(), req.url)
         .query(&req.query)
-        .headers(req.headers())
-        .body(req.body.clone());
+        .headers(req.headers)
+        .body(req.body);
 
     let response = request.send().await?;
 
