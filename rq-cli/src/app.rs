@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::fmt::Write;
 
 use anyhow::anyhow;
 use ratatui::{
@@ -16,8 +17,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{
     components::{
-        legend::Legend, menu::Menu, message_dialog::MessageDialog, popup::Popup,
-        response_panel::ResponsePanel, variables::panel::VarsPanel, BlockComponent, HandleSuccess,
+        menu::Menu, message_dialog::MessageDialog, popup::Popup, response_panel::ResponsePanel,
+        variables::panel::VarsPanel, BlockComponent, HandleSuccess,
     },
     event::{Event, Message},
 };
@@ -130,20 +131,46 @@ impl App {
                 self.should_exit = true;
             }
             KeyCode::Char('v') => Event::emit(Event::Focus(FocusState::VarsPanel)),
+            KeyCode::Char('?') => Event::emit(Event::Message(Message::Custom(
+                "keymaps".into(),
+                self.keymaps() + "\nPress any key to close",
+            ))),
             _ => (),
         };
 
         Ok(())
     }
 
-    pub fn draw(&self, f: &mut crate::terminal::Frame<'_>) {
-        let [main_chunk, legend_chunk] = {
-            let x = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Min(1), Constraint::Length(1)])
-                .split(f.size());
+    fn keymaps(&self) -> String {
+        let keymaps = match self.focus {
+            FocusState::RequestsList => Self::KEYMAPS.iter().chain(self.request_menu.keymaps()),
+            FocusState::ResponsePanel => Self::KEYMAPS.iter().chain(self.responses[0].keymaps()),
+            FocusState::VarsPanel => Self::KEYMAPS.iter().chain(self.vars_panel.keymaps()),
+        };
 
-            [x[0], x[1]]
+        keymaps.fold(String::new(), |mut s, (k, v)| {
+            let _ = writeln!(s, "{k}: {v}");
+            s
+        })
+    }
+
+    pub fn draw(&self, f: &mut crate::terminal::Frame<'_>) {
+        let (list_border_style, response_border_style, vars_border_style) = match self.focus {
+            FocusState::RequestsList => (
+                Style::default().fg(Color::Blue),
+                Style::default(),
+                Style::default(),
+            ),
+            FocusState::ResponsePanel => (
+                Style::default(),
+                Style::default().fg(Color::Blue),
+                Style::default(),
+            ),
+            FocusState::VarsPanel => (
+                Style::default(),
+                Style::default(),
+                Style::default().fg(Color::Blue),
+            ),
         };
 
         // Create two chunks with equal screen space
@@ -151,36 +178,14 @@ impl App {
             let x = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-                .split(main_chunk);
+                .split(f.size());
 
             [x[0], x[1]]
         };
 
-        let (list_border_style, response_border_style, vars_border_style, legend) = match self.focus
-        {
-            FocusState::RequestsList => (
-                Style::default().fg(Color::Blue),
-                Style::default(),
-                Style::default(),
-                Legend::new(Self::KEYMAPS.iter().chain(self.request_menu.keymaps())),
-            ),
-            FocusState::ResponsePanel => (
-                Style::default(),
-                Style::default().fg(Color::Blue),
-                Style::default(),
-                Legend::new(Self::KEYMAPS.iter().chain(self.responses[0].keymaps())),
-            ),
-            FocusState::VarsPanel => (
-                Style::default(),
-                Style::default(),
-                Style::default().fg(Color::Blue),
-                Legend::new(Self::KEYMAPS.iter().chain(self.vars_panel.keymaps())),
-            ),
-        };
-
         let list_block = Block::default()
             .borders(Borders::ALL)
-            .title(format!(">> {} <<", self.file_path.as_str()))
+            .title(format!(" {} ", self.file_path.as_str()))
             .border_style(list_border_style);
 
         let response_block = Block::default()
@@ -209,7 +214,6 @@ impl App {
         self.request_menu.render(f, list_chunk, list_block);
         let response_panel = &self.responses[self.request_menu.idx()];
         response_panel.render(f, response_chunk, response_block);
-        legend.render(f, legend_chunk, Block::default());
 
         if let Some(popup) = self.popups.front() {
             popup.render(f, f.size(), Block::default().borders(Borders::ALL));

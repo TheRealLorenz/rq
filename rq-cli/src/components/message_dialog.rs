@@ -14,6 +14,10 @@ impl MessageDialog {
     pub fn new(message: Message) -> Self {
         Self { content: message }
     }
+
+    fn format_title(title: &str) -> String {
+        format!(" {title} ")
+    }
 }
 
 impl BlockComponent for MessageDialog {
@@ -34,8 +38,11 @@ impl BlockComponent for MessageDialog {
         block: ratatui::widgets::Block,
     ) {
         let (content, title, color) = match &self.content {
-            Message::Info(content) => (content.as_str(), " info ", Color::Green),
-            Message::Error(content) => (content.as_str(), " error ", Color::Red),
+            Message::Info(content) => (content.as_str(), Self::format_title("info"), Color::Green),
+            Message::Error(content) => (content.as_str(), Self::format_title("error"), Color::Red),
+            Message::Custom(title, content) => {
+                (content.as_str(), Self::format_title(title), Color::Green)
+            }
         };
 
         let p = Paragraph::new(content)

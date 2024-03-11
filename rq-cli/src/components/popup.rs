@@ -1,9 +1,9 @@
 use ratatui::{
     prelude::{Constraint, Direction, Layout, Rect},
-    widgets::{Block, Clear},
+    widgets::Clear,
 };
 
-use super::{legend::Legend, BlockComponent};
+use super::BlockComponent;
 
 pub struct Popup<T: BlockComponent> {
     component: T,
@@ -55,16 +55,6 @@ impl<T: BlockComponent> BlockComponent for Popup<T> {
 
         frame.render_widget(Clear, popup_area);
 
-        let [popup_area, legend_area] = {
-            let x = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Min(1), Constraint::Length(1)])
-                .split(popup_area);
-
-            [x[0], x[1]]
-        };
-
         self.component.render(frame, popup_area, block);
-        Legend::new(self.component.keymaps().iter()).render(frame, legend_area, Block::default());
     }
 }

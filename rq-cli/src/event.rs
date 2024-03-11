@@ -32,6 +32,7 @@ pub enum Event {
 pub enum Message {
     Info(String),
     Error(String),
+    Custom(String, String),
 }
 
 impl Event {
